@@ -1,0 +1,398 @@
+{
+  "account_deletion_requests": {
+    "columns": {
+      "Request_ID": "text",
+      "Email": "text",
+      "Name": "text",
+      "Reason": "text",
+      "Created_At": "timestamp with time zone",
+      "Status": "text",
+      "Organization_ID": "uuid"
+    }
+  },
+  "activities": {
+    "columns": {
+      "Log_ID": "text",
+      "Parent_Object_Type": "text",
+      "Parent_Object_ID": "text",
+      "Activity_Type": "text",
+      "Summary": "text",
+      "Detailed_Description": "text",
+      "Attachment_URL": "text",
+      "Follow_Up_Date": "date",
+      "Log_Date": "timestamp with time zone",
+      "Logged_By_User_ID": "text",
+      "Created_At": "timestamp with time zone",
+      "Updated_At": "timestamp with time zone",
+      "Deal_Stage_At_Log": "text",
+      "Event_Date": "date",
+      "Event_Time": "time without time zone",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Logged_By_User_ID -> users.User_ID"
+    ]
+  },
+  "activity_attachments": {
+    "columns": {
+      "Attachment_ID": "text",
+      "Log_ID": "text",
+      "File_Name": "text",
+      "Mime_Type": "text",
+      "File_Size": "integer",
+      "Storage_Path": "text",
+      "Uploaded_By_User_ID": "text",
+      "Uploaded_At": "text",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Log_ID -> activities.Log_ID"
+    ]
+  },
+  "comment_reactions": {
+    "columns": {
+      "Reaction_ID": "text",
+      "Comment_ID": "text",
+      "User_ID": "text",
+      "Emoji": "text",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Comment_ID -> task_comments.Comment_ID",
+      "User_ID -> users.User_ID"
+    ]
+  },
+  "contacts": {
+    "columns": {
+      "Contact_ID": "text",
+      "First_Name": "text",
+      "Last_Name": "text",
+      "Email": "text",
+      "Phone_Primary": "text",
+      "Organization_Name": "text",
+      "Contact_Type": "text",
+      "Source": "text",
+      "Created_Date": "date",
+      "Owner_ID": "text",
+      "Created_At": "timestamp with time zone",
+      "Updated_At": "timestamp with time zone",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Owner_ID -> users.User_ID"
+    ],
+    "values": {
+      "Contact_Type": [
+        "Lead"
+      ],
+      "Source": [
+        "Web"
+      ]
+    }
+  },
+  "deal_alert_rules": {
+    "columns": {
+      "Rule_ID": "text",
+      "Organization_Name": "text",
+      "Rule_Name": "text",
+      "Stage_Name": "text",
+      "Days_Threshold": "integer",
+      "Status_Filter": "text",
+      "Message": "text",
+      "Is_Active": "boolean",
+      "Created_By": "text",
+      "Created_At": "timestamp with time zone",
+      "Updated_At": "timestamp with time zone",
+      "Created_By_User_ID": "text",
+      "Rule_Type": "text",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Created_By -> users.User_ID"
+    ]
+  },
+  "deal_attachments": {
+    "columns": {
+      "Attachment_ID": "text",
+      "Deal_ID": "text",
+      "File_Name": "text",
+      "Mime_Type": "text",
+      "File_Size": "bigint",
+      "Storage_Path": "text",
+      "Media_Type": "text",
+      "Uploaded_By_User_ID": "text",
+      "Uploaded_At": "timestamp with time zone",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Deal_ID -> deals.Deal_ID",
+      "Uploaded_By_User_ID -> users.User_ID"
+    ]
+  },
+  "deal_contacts": {
+    "columns": {
+      "Deal_ID": "text",
+      "Contact_ID": "text",
+      "Is_Primary": "boolean",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Deal_ID -> deals.Deal_ID",
+      "Contact_ID -> contacts.Contact_ID"
+    ]
+  },
+  "deal_team_members": {
+    "columns": {
+      "Deal_ID": "text",
+      "User_ID": "text",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Deal_ID -> deals.Deal_ID",
+      "User_ID -> users.User_ID"
+    ]
+  },
+  "deal_types": {
+    "columns": {
+      "Type_ID": "text",
+      "Label": "text",
+      "Is_Active": "boolean",
+      "Sort_Order": "integer",
+      "Organization_ID": "uuid"
+    },
+    "values": {
+      "Label": [
+        "Product",
+        "Service",
+        "Subscription"
+      ]
+    }
+  },
+  "deals": {
+    "columns": {
+      "Deal_ID": "text",
+      "Deal_Name": "text",
+      "Associated_Contact_ID": "text",
+      "Pipeline_ID": "text",
+      "Current_Stage": "text",
+      "Deal_Value": "double precision",
+      "Expected_Close_Date": "date",
+      "Probability_Percentage": "integer",
+      "Win_Loss_Reason": "text",
+      "Owner_ID": "text",
+      "Status": "text",
+      "Deal_Source": "character varying",
+      "Created_At": "timestamp with time zone",
+      "Updated_At": "timestamp with time zone",
+      "ARR": "double precision",
+      "TCV": "double precision",
+      "TLV": "double precision",
+      "Commission": "double precision",
+      "Partner_Commission": "double precision",
+      "Distributor_Commission": "double precision",
+      "Deal_Type": "text",
+      "Sale_Type": "text",
+      "Region_Name": "text",
+      "Territory_Name": "text",
+      "Region": "text",
+      "Is_Favorite": "boolean",
+      "Rag_Status": "text",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Associated_Contact_ID -> contacts.Contact_ID",
+      "Pipeline_ID -> pipelines.Pipeline_ID",
+      "Owner_ID -> users.User_ID"
+    ],
+    "values": {
+      "Status": [
+        "Open"
+      ],
+      "Current_Stage": [
+        "Lead"
+      ],
+      "Deal_Type": [
+        "Product"
+      ],
+      "Sale_Type": [
+        "Pipeline"
+      ],
+      "Region": [
+        "Madhya Pradesh"
+      ],
+      "Deal_Source": [
+        "WEB"
+      ]
+    }
+  },
+  "events_log": {
+    "columns": {
+      "Log_Entry_ID": "integer",
+      "Timestamp": "timestamp with time zone",
+      "User_ID": "text",
+      "User_Name": "text",
+      "Action_Type": "text",
+      "Object_Type": "text",
+      "Object_ID": "text",
+      "Object_Name": "text",
+      "Before_State": "text",
+      "After_State": "text",
+      "Organization_ID": "uuid"
+    }
+  },
+  "line_items": {
+    "columns": {
+      "Line_Item_ID": "text",
+      "Deal_ID": "text",
+      "Product_ID": "text",
+      "Quantity": "integer",
+      "Unit_Price_At_Sale": "double precision",
+      "Discount_Amount": "double precision",
+      "Total_Line_Value": "double precision",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Deal_ID -> deals.Deal_ID",
+      "Product_ID -> products.Product_ID"
+    ]
+  },
+  "pipelines": {
+    "columns": {
+      "Pipeline_ID": "text",
+      "Pipeline_Name": "text",
+      "Stages_JSON": "jsonb",
+      "Organization_ID": "uuid"
+    }
+  },
+  "products": {
+    "columns": {
+      "Product_ID": "text",
+      "Name": "text",
+      "SKU_Code": "text",
+      "Type": "text",
+      "Unit_Price": "double precision",
+      "Description": "text",
+      "Is_Active": "boolean",
+      "Organization_ID": "uuid"
+    },
+    "values": {
+      "Type": [
+        "Product",
+        "Subscription"
+      ]
+    }
+  },
+  "task_attachments": {
+    "columns": {
+      "Attachment_ID": "text",
+      "Task_ID": "text",
+      "File_Name": "text",
+      "Mime_Type": "text",
+      "File_Size": "integer",
+      "Storage_Path": "text",
+      "Uploaded_By": "text",
+      "Uploaded_At": "timestamp with time zone",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Task_ID -> tasks.Task_ID",
+      "Uploaded_By -> users.User_ID"
+    ]
+  },
+  "task_comments": {
+    "columns": {
+      "Comment_ID": "text",
+      "Task_ID": "text",
+      "User_ID": "text",
+      "User_Name": "text",
+      "Content": "text",
+      "Attachment_URL": "text",
+      "Created_At": "timestamp with time zone",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Task_ID -> tasks.Task_ID",
+      "User_ID -> users.User_ID"
+    ]
+  },
+  "task_notifications": {
+    "columns": {
+      "Notification_ID": "text",
+      "User_ID": "text",
+      "Task_ID": "text",
+      "Message": "text",
+      "Is_Read": "boolean",
+      "Created_At": "timestamp with time zone",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "User_ID -> users.User_ID",
+      "Task_ID -> tasks.Task_ID"
+    ]
+  },
+  "tasks": {
+    "columns": {
+      "Task_ID": "text",
+      "Task_Title": "text",
+      "Description": "text",
+      "Assigned_To": "text",
+      "Assigned_By": "text",
+      "Due_Date": "date",
+      "Status": "text",
+      "Is_Read": "boolean",
+      "Created_At": "timestamp with time zone",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "Assigned_To -> users.User_ID",
+      "Assigned_By -> users.User_ID"
+    ]
+  },
+  "user_alert_states": {
+    "columns": {
+      "State_ID": "text",
+      "User_ID": "text",
+      "Alert_Key": "text",
+      "Status": "text",
+      "Snooze_Until": "timestamp with time zone",
+      "Updated_At": "timestamp with time zone",
+      "Dismissed_At": "timestamp with time zone",
+      "Organization_ID": "uuid"
+    },
+    "relationships": [
+      "User_ID -> users.User_ID"
+    ]
+  },
+  "users": {
+    "columns": {
+      "User_ID": "text",
+      "First_Name": "text",
+      "Last_Name": "text",
+      "Email": "text",
+      "Role": "text",
+      "Status": "text",
+      "Avatar_Updated_At": "text",
+      "Phone_Number": "text",
+      "Organization_Name": "text",
+      "Residential_Address": "text",
+      "Office_Address": "text",
+      "Created_At": "timestamp with time zone",
+      "Updated_At": "timestamp with time zone",
+      "Region_Name": "text",
+      "Territory_Name": "text",
+      "Region": "text",
+      "Organization_ID": "uuid",
+      "Mobile_Number": "text"
+    },
+    "values": {
+      "Role": [
+        "Sales_Rep",
+        "System_Admin"
+      ],
+      "Status": [
+        "Active",
+        "NEW"
+      ]
+    }
+  }
+}

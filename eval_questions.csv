@@ -1,0 +1,11 @@
+id;question;expected_behavior;expected_keywords;expected_source_contains
+q1;What is the total programme cost across all proposals?;answer;150,000,000|9,000,000;
+q2;Compare the STEM Cloud infrastructure costs between the two proposals.;answer;4,000,000|15,000,000;
+q3;Does the on-prem infrastructure use AWS?;answer;Oracle;
+q4;What is the total invoice amount for March 2026?;answer;4,429;Invoice
+q5;What is the deal value for Acme Corp?;refuse;;
+q6;What is RSP's annual revenue, and how does that compare to TATA ELXSI's revenue?;answer;3.2 billion|500M;
+q7;What is the Assessment Phase fee mentioned in the RSP proposal?;answer;300,000;RSP
+q8;What profit share percentage does STEM offer TATA ELXSI?;answer;25%;TATA
+q9;How many years of historical process data must RSP provide to STEM?;answer;3 years;RSP
+q10;What is the minimum annual cost of one STEM On-Prem Compute Data Center site?;answer;2M;TATA

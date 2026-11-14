@@ -1,0 +1,158 @@
+DEMO DATA CHECK
+Database: closemore_next  as closemore_user
+
+Organizations (users per organization)
+--------------------------------------
+  organization_id | users
+  00000000-0000-0000-0000-000000000001 | 56
+  55073787-2e1b-4126-9269-51cae248a471 | 3
+  8819951c-433f-4447-a723-0afaf9bebd29 | 2
+  617f89d5-074f-4215-ac1a-8c8135bbc7eb | 2
+  d0e45a67-0d46-4711-a9cf-d8056ae067a8 | 2
+  3a78bf01-c1c8-4f5e-8c40-af3a922dcc73 | 2
+  699576ff-9984-42dd-a71a-83db0b6505ce | 2
+  136f1ddd-a44e-46e2-ba0f-d8c842696193 | 2
+  428e361f-1f21-43cd-9924-860e80c4ed07 | 1
+  02638f1f-3401-4af1-bcd0-db6f84f0f96f | 1
+
+Users by role and status
+------------------------
+  role | status | count
+  Executive | Active | 4
+  Sales_Admin | Active | 6
+  Sales_Rep | Active | 48
+  Sales_Rep | Inactive | 1
+  Sales_Rep | NEW | 2
+  Sales_Rep | Pending_Approval | 2
+  System_Admin | Active | 10
+
+Users by role: how many have a region set
+-----------------------------------------
+  role | total | with_region | without_region
+  Executive | 4 | 3 | 1
+  Sales_Admin | 6 | 2 | 4
+  Sales_Rep | 53 | 21 | 32
+  System_Admin | 10 | 0 | 10
+
+Distinct user Region values (shows list format)
+-----------------------------------------------
+  Region | users
+   | 47
+  Madhya Pradesh | 6
+  Indore | 5
+  east | 4
+  japan | 2
+  india | 1
+  North | 1
+  America | 1
+  Punjab | 1
+  South | 1
+  Australia | 1
+  Indore, Australia | 1
+  LATAM, Indore | 1
+  America, LATAM | 1
+
+Deals per Region
+----------------
+  Region | deals
+  (empty) | 45
+  east | 9
+  Indore | 6
+  Madhya Pradesh | 2
+  LATAM | 2
+  West | 2
+  East | 1
+  west | 1
+  SOUTH | 1
+  Australia | 1
+  WEST | 1
+  Japan | 1
+  America | 1
+  east  | 1
+  GLOBAL | 1
+  North | 1
+
+Deals per owner (top 15)
+------------------------
+  owner_id | role | owner_region | deals
+  seed-u-6 | Sales_Rep | east | 5
+  seed-u-21 | Sales_Rep |  | 4
+  seed-u-1 | System_Admin |  | 4
+  seed-u-30 | Sales_Rep | Indore, Australia | 4
+  seed-u-5 | Sales_Rep | Indore | 4
+  seed-u-2 | Sales_Admin | east | 4
+  seed-u-15 | Sales_Rep | japan | 4
+  seed-u-8 | Sales_Rep | LATAM, Indore | 4
+  seed-u-37 | Sales_Rep |  | 3
+  seed-u-27 | Sales_Rep |  | 3
+  u-1786635589299-566 | Sales_Admin |  | 3
+  seed-u-22 | Sales_Rep |  | 2
+  seed-u-35 | Sales_Rep |  | 2
+  seed-u-19 | Sales_Rep |  | 2
+  seed-u-12 | Sales_Rep | Indore | 2
+
+Deals whose owner does NOT have the deal's region (hidden from owner under team rule)
+-------------------------------------------------------------------------------------
+  deal_id | deal_region | owner_id | owner_role | owner_region
+  d-1792225827237-528 | Madhya Pradesh | u-45010671-f6e9-49d3-b043-29e86f164bb3 | System_Admin | 
+  d-1788446946440-701 | GLOBAL | seed-u-1 | System_Admin | 
+  d-1788446878577-264 | SOUTH | seed-u-1 | System_Admin | 
+  seed-d-28 | North | seed-u-23 | Sales_Rep | 
+  d-1788446749561-254 | WEST | seed-u-1 | System_Admin | 
+  d-1788839144344-883 | Japan | u-1786548024094-886 | Sales_Rep | japan
+  d-1787134437307-538 | West | seed-u-7 | Sales_Rep | Australia
+  d-1787046542240-385 | east  | u-1787046102933-750 | Sales_Rep | east
+  d-1786870860873-951 | Indore | seed-u-1 | System_Admin | 
+  d-1787044740336-13 | west | seed-u-6 | Sales_Rep | east
+  seed-d-38 | West | seed-u-33 | Sales_Rep | 
+  seed-d-8 | east | seed-u-27 | Sales_Rep | 
+  d-1787134191773-53 | East | seed-u-6 | Sales_Rep | east
+  d-1793555755575-580 | America | seed-u-2 | Sales_Admin | east
+  d-1793556206715-955 | east | u-1786635589299-566 | Sales_Admin | 
+  d-1793556159361-39 | east | u-1786635589299-566 | Sales_Admin | 
+  d-1793556242090-537 | east | u-1786635589299-566 | Sales_Admin | 
+
+Deal team members
+-----------------
+  metric | value
+  rows | 6
+  deals with a team | 5
+  members who are not the deal owner | 6
+
+Team members who do NOT have the deal's region (break the team rule)
+--------------------------------------------------------------------
+  deal_id | deal_region | member_id | member_role | member_region
+  d-1788446749561-254 | WEST | u-1785975704026-414 | Sales_Admin | 
+  d-1788446878577-264 | SOUTH | u-1785975704026-414 | Sales_Admin | 
+  d-1788446946440-701 | GLOBAL | u-1785975704026-414 | Sales_Admin | 
+
+Sales reps per region
+---------------------
+  region | reps
+  Indore | 7
+  Madhya Pradesh | 5
+  east | 2
+  japan | 2
+  Australia | 2
+  india | 1
+  South | 1
+  LATAM | 1
+  North | 1
+  America | 1
+
+CHECKLIST
+---------
+  [MISSING] an Admin user exists
+  [PASS] a Sales_Admin WITH region(s) exists
+  [PASS] a Sales_Admin WITHOUT region exists (sees all)
+  [PASS] a region with 2+ sales reps exists
+  [PASS] reps exist in 2+ different regions
+  [PASS] a rep with 2+ regions in profile exists
+  [MISSING] every region has at least one deal
+  [PASS] a deal owned by a rep exists in the rep's own region
+  [PASS] a deal whose owner lacks the deal's region exists (owner-hidden case)
+  [PASS] a deal team member who is not the owner exists (team case)
+  [MISSING] no team member breaks the same-region rule
+  [MISSING] no deals have an empty region
+
+MISSING items are what we will seed in the private demo copy.

@@ -1,0 +1,176 @@
+CRM DB check - 2026-11-05 06:24
+Connected to PostgreSQL successfully.
+
+========================================================================
+1. SERVER AND YOUR ROLE
+========================================================================
+Server      : PostgreSQL 17.10 (Debian 17.10-1.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+Database    : closemore_next
+You are     : closemore_user
+Major ver.  : 17  (security_invoker views need 15+)
+Superuser   : True
+Create DB   : True
+Create role : True
+Bypass RLS  : True
+CREATE on database : True
+CREATE on public   : True
+Database size      : 10.8 MB
+
+========================================================================
+2. TABLES (rows, size, access, RLS)
+========================================================================
+table                                         kind         rows       size select  rls
+--------------------------------------------------------------------------------------
+public.account_deletion_requests              r         unknown    24.0 KB    yes   on
+public.activities                             r         unknown    48.0 KB    yes   on
+public.activity_attachments                   r         unknown    64.0 KB    yes   on
+public.auth_sessions                          r             ~27   112.0 KB    yes  off
+public.billing_events                         r         unknown    32.0 KB    yes  off
+public.comment_reactions                      r         unknown    32.0 KB    yes   on
+public.contacts                               r             ~50    80.0 KB    yes   on
+public.deal_alert_rules                       r         unknown    80.0 KB    yes   on
+public.deal_attachments                       r         unknown    80.0 KB    yes   on
+public.deal_contacts                          r             ~70    48.0 KB    yes   on
+public.deal_rag_history                       r             ~51    64.0 KB    yes   on
+public.deal_team_members                      r         unknown    48.0 KB    yes   on
+public.deal_types                             r              ~3    48.0 KB    yes   on
+public.deals                                  r             ~69   168.0 KB    yes   on
+public.events_log                             r            ~497   208.0 KB    yes   on
+public.line_items                             r         unknown    48.0 KB    yes   on
+public.organization_feature_overrides         r         unknown    24.0 KB    yes   on
+public.organization_invitations               r         unknown    40.0 KB    yes   on
+public.organization_regions                   r         unknown    64.0 KB    yes   on
+public.organization_subscriptions             r         unknown    48.0 KB    yes   on
+public.organizations                          r              ~1    80.0 KB    yes   on
+public.pipelines                              r         unknown    64.0 KB    yes   on
+public.products                               r         unknown    80.0 KB    yes   on
+public.schema_migrations                      r         unknown    48.0 KB    yes  off
+public.subscription_events                    r         unknown    32.0 KB    yes   on
+public.subscription_plans                     r         unknown    48.0 KB    yes  off
+public.task_attachments                       r         unknown    24.0 KB    yes   on
+public.task_comments                          r         unknown    24.0 KB    yes   on
+public.task_notifications                     r         unknown    24.0 KB    yes   on
+public.tasks                                  r         unknown    48.0 KB    yes   on
+public.tenants                                v         unknown      0.0 B    yes  off
+public.user_alert_states                      r         unknown    80.0 KB    yes   on
+public.users                                  r             ~65   216.0 KB    yes   on
+--------------------------------------------------------------------------------------
+Objects listed: 33  (kind: r=table p=partitioned v=view m=matview)
+Readable table size, upper bound incl. indexes: 2.1 MB
+Objects with RLS already on: 28
+
+========================================================================
+3. COLUMNS THAT MATTER FOR RBAC AND PRIVACY
+========================================================================
+Ownership / region / team style columns:
+  public.activities.Logged_By_User_ID  (text)
+  public.activity_attachments.Uploaded_By_User_ID  (text)
+  public.auth_sessions.User_ID  (text)
+  public.comment_reactions.User_ID  (text)
+  public.contacts.Owner_ID  (text)
+  public.deal_alert_rules.Created_By  (text)
+  public.deal_alert_rules.Created_By_User_ID  (text)
+  public.deal_attachments.Uploaded_By_User_ID  (text)
+  public.deal_rag_history.Changed_By_User_ID  (text)
+  public.deal_team_members.User_ID  (text)
+  public.deals.Owner_ID  (text)
+  public.deals.Region_Name  (text)
+  public.deals.Territory_Name  (text)
+  public.deals.Region  (text)
+  public.events_log.User_ID  (text)
+  public.organization_invitations.Created_By_User_ID  (text)
+  public.organization_regions.Region_ID  (uuid)
+  public.organizations.Owner_User_ID  (text)
+  public.task_comments.User_ID  (text)
+  public.task_notifications.User_ID  (text)
+  public.tasks.Assigned_To  (text)
+  public.tasks.Assigned_By  (text)
+  public.user_alert_states.User_ID  (text)
+  public.users.User_ID  (text)
+  public.users.Region_Name  (text)
+  public.users.Territory_Name  (text)
+  public.users.Region  (text)
+
+Possibly sensitive columns (consider masking in a copy):
+  public.account_deletion_requests.Email  (text)
+  public.auth_sessions.Token_Hash  (text)
+  public.contacts.First_Name  (text)
+  public.contacts.Last_Name  (text)
+  public.contacts.Email  (text)
+  public.contacts.Phone_Primary  (text)
+  public.organization_invitations.Email  (text)
+  public.organization_invitations.Token_Hash  (text)
+  public.organizations.Billing_Email  (text)
+  public.tenants.Billing_Email  (text)
+  public.users.First_Name  (text)
+  public.users.Last_Name  (text)
+  public.users.Email  (text)
+  public.users.Password  (text)
+  public.users.Phone_Number  (text)
+  public.users.Residential_Address  (text)
+  public.users.Office_Address  (text)
+  public.users.Mobile_Number  (text)
+
+========================================================================
+4. FOREIGN KEYS
+========================================================================
+  activities: FOREIGN KEY ("Logged_By_User_ID") REFERENCES users("User_ID") ON DELETE RESTRICT
+  activity_attachments: FOREIGN KEY ("Log_ID") REFERENCES activities("Log_ID") ON DELETE CASCADE
+  auth_sessions: FOREIGN KEY ("User_ID") REFERENCES users("User_ID") ON DELETE CASCADE
+  billing_events: FOREIGN KEY ("Organization_ID") REFERENCES organizations("Organization_ID") ON DELETE SET NULL
+  comment_reactions: FOREIGN KEY ("Comment_ID") REFERENCES task_comments("Comment_ID") ON DELETE CASCADE
+  comment_reactions: FOREIGN KEY ("User_ID") REFERENCES users("User_ID") ON DELETE CASCADE
+  contacts: FOREIGN KEY ("Owner_ID") REFERENCES users("User_ID") ON DELETE RESTRICT
+  deal_alert_rules: FOREIGN KEY ("Created_By") REFERENCES users("User_ID") ON DELETE SET NULL
+  deal_attachments: FOREIGN KEY ("Deal_ID") REFERENCES deals("Deal_ID") ON DELETE CASCADE
+  deal_attachments: FOREIGN KEY ("Uploaded_By_User_ID") REFERENCES users("User_ID") ON DELETE CASCADE
+  deal_contacts: FOREIGN KEY ("Contact_ID") REFERENCES contacts("Contact_ID") ON DELETE CASCADE
+  deal_contacts: FOREIGN KEY ("Deal_ID") REFERENCES deals("Deal_ID") ON DELETE CASCADE
+  deal_rag_history: FOREIGN KEY ("Deal_ID") REFERENCES deals("Deal_ID") ON DELETE CASCADE
+  deals: FOREIGN KEY ("Associated_Contact_ID") REFERENCES contacts("Contact_ID") ON DELETE RESTRICT
+  deals: FOREIGN KEY ("Owner_ID") REFERENCES users("User_ID") ON DELETE RESTRICT
+  deals: FOREIGN KEY ("Pipeline_ID") REFERENCES pipelines("Pipeline_ID") ON DELETE RESTRICT
+  deal_team_members: FOREIGN KEY ("Deal_ID") REFERENCES deals("Deal_ID") ON DELETE CASCADE
+  deal_team_members: FOREIGN KEY ("User_ID") REFERENCES users("User_ID") ON DELETE CASCADE
+  line_items: FOREIGN KEY ("Deal_ID") REFERENCES deals("Deal_ID") ON DELETE CASCADE
+  line_items: FOREIGN KEY ("Product_ID") REFERENCES products("Product_ID") ON DELETE RESTRICT
+  organization_feature_overrides: FOREIGN KEY ("Organization_ID") REFERENCES organizations("Organization_ID") ON DELETE CASCADE
+  organization_invitations: FOREIGN KEY ("Created_By_User_ID") REFERENCES users("User_ID") ON DELETE CASCADE
+  organization_invitations: FOREIGN KEY ("Organization_ID") REFERENCES organizations("Organization_ID") ON DELETE CASCADE
+  organization_regions: FOREIGN KEY ("Organization_ID") REFERENCES organizations("Organization_ID") ON DELETE CASCADE
+  organizations: FOREIGN KEY ("Owner_User_ID") REFERENCES users("User_ID") ON DELETE SET NULL
+  organization_subscriptions: FOREIGN KEY ("Organization_ID") REFERENCES organizations("Organization_ID") ON DELETE CASCADE
+  organization_subscriptions: FOREIGN KEY ("Plan_ID") REFERENCES subscription_plans("Plan_ID")
+  subscription_events: FOREIGN KEY ("Organization_ID") REFERENCES organizations("Organization_ID") ON DELETE SET NULL
+  task_attachments: FOREIGN KEY ("Task_ID") REFERENCES tasks("Task_ID") ON DELETE CASCADE
+  task_attachments: FOREIGN KEY ("Uploaded_By") REFERENCES users("User_ID") ON DELETE CASCADE
+  task_comments: FOREIGN KEY ("Task_ID") REFERENCES tasks("Task_ID") ON DELETE CASCADE
+  task_comments: FOREIGN KEY ("User_ID") REFERENCES users("User_ID") ON DELETE CASCADE
+  task_notifications: FOREIGN KEY ("Task_ID") REFERENCES tasks("Task_ID") ON DELETE CASCADE
+  task_notifications: FOREIGN KEY ("User_ID") REFERENCES users("User_ID") ON DELETE CASCADE
+  tasks: FOREIGN KEY ("Assigned_By") REFERENCES users("User_ID") ON DELETE CASCADE
+  tasks: FOREIGN KEY ("Assigned_To") REFERENCES users("User_ID") ON DELETE CASCADE
+  user_alert_states: FOREIGN KEY ("User_ID") REFERENCES users("User_ID") ON DELETE CASCADE
+  users: FOREIGN KEY ("Organization_ID") REFERENCES organizations("Organization_ID") ON DELETE RESTRICT
+
+========================================================================
+5. PG_DUMP TEST (schema only, no row data)
+========================================================================
+Found: C:\Program Files\PostgreSQL\18\bin\pg_dump.EXE
+Client: pg_dump (PostgreSQL) 18.6
+pg_dump schema-only OK -> saved crm_schema_only.sql (structure only, no data)
+
+========================================================================
+SUMMARY
+========================================================================
+Postgres major version      : 17
+Database size               : 10.8 MB
+Readable tables size (max)  : 2.1 MB
+You can write in this DB    : True  (expected False)
+Tables you cannot read      : none
+pg_dump works               : True
+
+Reading this:
+ - All needed tables readable + modest size  -> copying to a private DB is feasible.
+ - pg_dump False                             -> use per-table COPY / psycopg2 export.
+ - Sensitive columns listed above            -> confirm permission or mask them first.

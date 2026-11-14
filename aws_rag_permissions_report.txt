@@ -1,0 +1,33 @@
+AWS RAG PERMISSION CHECK
+Region: ap-south-1
+
+1. WHO YOU ARE
+  [PASS] sts:GetCallerIdentity  - arn:aws:iam::307857335726:user/aniket_salvi
+
+2. S3 VECTORS
+  [PASS] ListVectorBuckets  - vector-s3-bucket
+  [PASS] GetVectorBucket  - ok
+  [PASS] ListIndexes  - closemore-docs
+  [PASS] CreateIndex (temporary test index)  - permtest-132f3d5a
+  [PASS] PutVectors (3 vectors with metadata)  - ok
+  [PASS] GetVectors (metadata readable)  - metadata read back: ['In-north', 'In-south']
+  [FAIL] ListVectors  - AccessDeniedException: User: arn:aws:iam::307857335726:user/aniket_salvi is not authorized to perform: s3vectors:ListVectors on resource: arn:aws:s3vectors:ap-south-1:307857335726:bucket/vector-s3-buc
+  [PASS] QueryVectors filter region $eq  - only In-south chunks returned
+  [PASS] QueryVectors filter region $in  - $in over several regions works (multi-region users)
+  [PASS] PutVectors overwrite (change region)  - same key replaced
+  [PASS] Verify region re-assignment  - metadata update by overwrite works
+  [PASS] DeleteVectors (delete a document's chunks by key)  - ok
+  [PASS] Verify deletion  - deleted chunks no longer returned
+  [PASS] DeleteIndex (cleanup)  - temporary index removed
+
+3. NORMAL S3 BUCKET: skipped (pass --bucket NAME to test document uploads)
+
+4. SUMMARY
+  14 passed, 1 failed
+  FAILED: ListVectors
+
+  Design notes:
+  - S3 Vectors deletes by KEY, not by metadata. Name chunk keys '<doc_id>#<chunk_no>'
+    and keep the chunk count in the documents table, so a document can be deleted fully.
+  - There is no metadata-update call: re-put the same key to change region/owner.
+  - Anything marked FAIL needs an IAM permission (s3vectors:* / s3:*) from your AWS admin.

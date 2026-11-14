@@ -1,0 +1,237 @@
+--- server_original.py	2026-11-05 22:10:49.706444069 +0000
++++ server.py	2026-11-06 00:22:32.689809430 +0000
+@@ -47,18 +47,21 @@
+ import time
+ import logging
+ import threading
++from contextvars import ContextVar          # SOURCES
+ 
+ import boto3
+ import psycopg2
+ import psycopg2.errors
+ import requests
+-from fastapi import FastAPI, HTTPException
++from fastapi import Depends, FastAPI, HTTPException                  # RBAC: Depends
+ from fastapi.middleware.cors import CORSMiddleware
+ from pydantic import BaseModel
+ from sentence_transformers import SentenceTransformer
+ 
+ from helper import clean_sql, fix_sql_dialect, auto_quote_identifiers
+ from db_connection import get_connection  # also loads .env
++import copilot_rbac as rbac                 # RBAC: who is asking + what they may see (one file)
++import copilot_docs as docs                 # RBAC: documents (upload/list/delete + region-filtered search)
+ import guardrails
+ import schema_check
+ import schema_format
+@@ -110,7 +113,8 @@
+ RAG_MAX_DISTANCE = float(os.environ.get("RAG_MAX_DISTANCE", "0.58"))
+ 
+ _REQUIRED_ENV = ["POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER",
+-                 "POSTGRES_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
++                 "POSTGRES_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
++                 "COPILOT_DB_PASSWORD", "COPILOT_RBAC_SECRET"]                       # RBAC
+ _missing = [v for v in _REQUIRED_ENV if not os.environ.get(v)]
+ if _missing:
+     raise RuntimeError(f"Missing required environment variable(s): {_missing}")
+@@ -233,6 +237,7 @@
+ schema_str = schema_format.format_schema(schema_dict)       # compact text for the SQL prompt
+ 
+ s3vectors = boto3.client("s3vectors", region_name=AWS_REGION)
++docs.configure(embed_model=embed_model, s3vectors=s3vectors)     # RBAC: share the model and the client
+ 
+ log.info("Server ready.")
+ 
+@@ -242,14 +247,16 @@
+ # ============================================================
+ 
+ def get_readonly_connection():
+-    """Postgres connection that can only read, with a per-statement timeout."""
+-    conn = get_connection()
+-    conn.autocommit = True
+-    with conn.cursor() as cur:
+-        cur.execute(f"SET statement_timeout = {SQL_STATEMENT_TIMEOUT_MS}")
+-    conn.autocommit = False
+-    conn.set_session(readonly=True)
+-    return conn
++    """Read-only connection AS THE USER OF THIS REQUEST (role copilot_app + signed identity):
++    PostgreSQL row-level security filters every row this connection can read.               # RBAC
++    Fails if no user was set for the request, so data is never read without an identity."""
++    return rbac.connect_for_request(SQL_STATEMENT_TIMEOUT_MS)                                # RBAC
++
++
++def get_lookup_connection():
++    """Connection for the shared name index (entity_lookup). Runs as RBAC_LOOKUP_USER.        # RBAC
++    Names resolve across the organization; the rows the question returns are still scoped."""
++    return rbac.connect_for_lookup(SQL_STATEMENT_TIMEOUT_MS)                                 # RBAC
+ 
+ 
+ # ============================================================
+@@ -306,7 +313,7 @@
+         return "SQL"
+     if label == "CHAT":
+         try:
+-            known, duplicated = entity_lookup.scan_question_ex(question, get_readonly_connection, schema_dict)
++            known, duplicated = entity_lookup.scan_question_ex(question, get_lookup_connection, schema_dict)   # RBAC
+         except Exception:
+             known, duplicated = [], []
+         if known or duplicated:         # a name shared by two people is still a CRM name (the SQL step asks which one)
+@@ -504,6 +511,10 @@
+     problems = schema_check.check_schema(safe, schema_dict)
+     if problems:
+         return problems, safe, False
++    try:                                                     # RBAC: stricter guard -- one plain SELECT on allowed tables
++        rbac.check_sql(safe)
++    except rbac.SqlRejected as e:
++        return [f"Only a single read-only SELECT query on the CRM tables is allowed ({e})."], safe, e.security
+     err = _explain(conn, safe)
+     if err:
+         return [f"PostgreSQL rejected the query: {err}"], safe, False
+@@ -533,7 +544,7 @@
+         if not sql_templates.person_text_is_plausible_name(m.person_text):
+             return None
+         try:
+-            res = entity_lookup.resolve_person(m.person_text, get_readonly_connection, schema_dict, kinds=m.person_kinds)
++            res = entity_lookup.resolve_person(m.person_text, get_lookup_connection, schema_dict, kinds=m.person_kinds)   # RBAC
+         except Exception as e:
+             log.warning(f"name lookup failed ({e}); using the SQL model instead")
+             return None
+@@ -584,7 +595,7 @@
+ 
+ def _entity_facts(question):
+     try:
+-        found, ambiguous = entity_lookup.scan_question_ex(question, get_readonly_connection, schema_dict)
++        found, ambiguous = entity_lookup.scan_question_ex(question, get_lookup_connection, schema_dict)   # RBAC
+     except Exception as e:
+         log.warning(f"entity scan failed: {e}")
+         return "", [], []
+@@ -709,11 +720,9 @@
+ def run_rag_retrieval(question, top_k=TOP_K):
+     t_rag = time.time()
+     q_vector = embed_model.encode([question], normalize_embeddings=True)[0].tolist()
+-    response = s3vectors.query_vectors(
+-        vectorBucketName=VECTOR_BUCKET, indexName=INDEX_NAME,
+-        queryVector={"float32": q_vector}, topK=top_k + 3,
+-        returnMetadata=True, returnDistance=True,
+-    )
++    # RBAC: only chunks this user may see -- region filter in the vector search + re-check in the database.
++    # Full-view users also get the old region-less index (INDEX_NAME is kept as LEGACY_DOCS_INDEX).
++    response = {"vectors": docs.search(rbac.request_user(), q_vector, top_k + 3)}
+     # the same passage can be indexed twice (e.g. a PDF uploaded twice); keep each distinct text once
+     unique, seen = [], set()
+     for hit in response.get("vectors", []):
+@@ -734,6 +743,36 @@
+     return kept
+ 
+ 
++_rag_sources: ContextVar = ContextVar("rag_sources", default=None)       # SOURCES: chunks used for this request
++
++
++def _sources_from(chunks):
++    """[Source N] numbering below is the order of `chunks`, so n matches the answer text.                # SOURCES
++    Chunks come from docs.search, which already removed everything this user may not see (RBAC)."""
++    out = []
++    for i, hit in enumerate(chunks, start=1):
++        meta = hit.get("metadata") or {}
++        page = meta.get("page")
++        try:
++            page = int(page) if page is not None else None
++        except (TypeError, ValueError):
++            page = None
++        snippet = " ".join(str(meta.get("text") or "").split())[:300] or None
++        out.append({"n": i, "document": _display_name(meta.get("source_file")), "page": page,
++                    "doc_id": meta.get("doc_id") or None, "snippet": snippet})
++    return out
++
++
++def _cited_sources(answer):
++    """Only the sources the answer cites ("Source 2"); all retrieved ones if it cites none. At most 8.   # SOURCES"""
++    sources = _rag_sources.get() or []
++    if not sources:
++        return None
++    cited = {int(n) for n in re.findall(r"\bSource\s*(\d+)", answer or "", re.I)}
++    used = [x for x in sources if x["n"] in cited] or sources
++    return used[:8]
++
++
+ def run_rag_answer(question, chunks):
+     if not chunks:
+         return conv.NO_DOCS_MSG
+@@ -900,6 +939,7 @@
+             session_logger.log_event("table_built", table=bool(table), rows=len(sql_result["rows"]), chart=chart)
+     if route in ("RAG", "BOTH"):
+         chunks = run_rag_retrieval(question)
++        _rag_sources.set(_sources_from(chunks))                              # SOURCES
+         rag_answer = run_rag_answer(question, chunks)
+         if route == "RAG" and not chunks:
+             return route, conv.NO_DOCS_MSG, None, False         # nothing relevant: say so, no model call
+@@ -929,6 +969,8 @@
+ # ============================================================
+ 
+ app = FastAPI(title="CloseMore AI Copilot")
++app.include_router(rbac.router)          # RBAC: GET /me and GET /demo/users
++app.include_router(docs.router)          # RBAC: POST/GET/DELETE /documents
+ 
+ app.add_middleware(
+     CORSMiddleware,
+@@ -940,7 +982,7 @@
+ 
+ def _warm_entity_index():
+     try:
+-        entity_lookup.get_index(get_readonly_connection, schema_dict)
++        entity_lookup.get_index(get_lookup_connection, schema_dict)   # RBAC
+     except Exception as e:
+         log.warning(f"could not warm the name cache: {e}")
+ 
+@@ -971,6 +1013,8 @@
+     sql_error: str | None = None
+     table: dict | None = None      # optional: result rows for the UI (see result_view.py)
+     chart: dict | None = None      # optional: chart spec, only together with a table
++    scope: dict | None = None      # RBAC (optional): who answered and what they can see, for the header label
++    sources: list[dict] | None = None   # SOURCES (optional): documents behind a RAG answer, only ones this user may see
+ 
+ 
+ @app.get("/health")
+@@ -987,25 +1031,36 @@
+ 
+ 
+ @app.post("/ask", response_model=AskResponse)
+-def ask(req: AskRequest):
++def ask(req: AskRequest, user: rbac.CurrentUser = Depends(rbac.get_current_user)):   # RBAC: 401 if no valid user
+     question = req.question.strip()
+     if not question:
+         raise HTTPException(status_code=400, detail="question must not be empty")
+ 
++    rbac.set_request_user(user)                                                       # RBAC: every DB read uses this user
+     rec = session_logger.start(req.session_id, question, history_turns=len(req.history))
++    session_logger.log_event("rbac_user", user_id=user.user_id, role=user.role, regions=user.regions)   # RBAC
+     try:
+         resp = _handle(req, question)
+     except Exception as e:
+         rec.event("error", error=f"{e.__class__.__name__}: {e}")
+         session_logger.finish(rec, route="ERROR", answer="", outcome="exception")
++        rbac.audit(event="ask", session_id=req.session_id, user_id=user.user_id, role=user.role,   # RBAC
++                   question=question, route="ERROR", error=f"{e.__class__.__name__}")
+         raise
+     session_logger.finish(rec, route=resp.route, answer=resp.answer, sql=resp.sql, sql_error=resp.sql_error,
+                           outcome=("system_error" if resp.route == "ERROR" else "ok"))
++    if not (resp.answer or "").strip():                                               # never send an empty answer
++        resp.answer = conv.SYSTEM_MSG
++    rbac.audit(event="ask", session_id=req.session_id, user_id=user.user_id, role=user.role,       # RBAC
++               question=question, route=resp.route, sql=resp.sql, sql_error=resp.sql_error)
++    resp.scope = rbac.scope_info(user)                                                # RBAC
++    resp.sql = rbac.visible_sql(user, resp.sql)                                       # RBAC: RBAC_SHOW_SQL=all|admins
+     return resp
+ 
+ 
+ def _handle(req, question):
+     log.info(f"Question: {question}")
++    _rag_sources.set(None)                                                    # SOURCES: nothing from earlier requests
+ 
+     # ---- input guardrails: rules only, no model call, no database access ----
+     guardrails.set_allowed_words(entity_lookup.name_tokens())      # real names from the CRM are never "toxic" (cached, no DB call)
+@@ -1104,4 +1159,5 @@
+         sql_error=(sql_result["error"] if sql_result else None),
+         table=table,
+         chart=(sql_result.get("chart") if table else None),
++        sources=(_cited_sources(answer) if route in ("RAG", "BOTH") else None),   # SOURCES
+     )
