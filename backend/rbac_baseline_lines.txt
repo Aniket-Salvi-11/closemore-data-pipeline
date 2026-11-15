@@ -1,0 +1,33 @@
+from contextvars import ContextVar          # SOURCES
+from fastapi import Depends, FastAPI, HTTPException                  # RBAC: Depends
+import copilot_rbac as rbac                 # RBAC: who is asking + what they may see (one file)
+import copilot_docs as docs                 # RBAC: documents (upload/list/delete + region-filtered search)
+                 "COPILOT_DB_PASSWORD", "COPILOT_RBAC_SECRET"]                       # RBAC
+docs.configure(embed_model=embed_model, s3vectors=s3vectors)     # RBAC: share the model and the client
+    PostgreSQL row-level security filters every row this connection can read.               # RBAC
+    return rbac.connect_for_request(SQL_STATEMENT_TIMEOUT_MS)                                # RBAC
+    """Connection for the shared name index (entity_lookup). Runs as RBAC_LOOKUP_USER.        # RBAC
+    return rbac.connect_for_lookup(SQL_STATEMENT_TIMEOUT_MS)                                 # RBAC
+            known, duplicated = entity_lookup.scan_question_ex(question, get_lookup_connection, schema_dict)   # RBAC
+    try:                                                     # RBAC: stricter guard -- one plain SELECT on allowed tables
+            res = entity_lookup.resolve_person(m.person_text, get_lookup_connection, schema_dict, kinds=m.person_kinds)   # RBAC
+        found, ambiguous = entity_lookup.scan_question_ex(question, get_lookup_connection, schema_dict)   # RBAC
+    # RBAC: only chunks this user may see -- region filter in the vector search + re-check in the database.
+_rag_sources: ContextVar = ContextVar("rag_sources", default=None)       # SOURCES: chunks used for this request
+    """[Source N] numbering below is the order of `chunks`, so n matches the answer text.                # SOURCES
+    """Only the sources the answer cites ("Source 2"); all retrieved ones if it cites none. At most 8.   # SOURCES"""
+        _rag_sources.set(_sources_from(chunks))                              # SOURCES
+app.include_router(rbac.router)          # RBAC: GET /me and GET /demo/users
+app.include_router(docs.router)          # RBAC: POST/GET/DELETE /documents
+        entity_lookup.get_index(get_lookup_connection, schema_dict)   # RBAC
+    scope: dict | None = None      # RBAC (optional): who answered and what they can see, for the header label
+    sources: list[dict] | None = None   # SOURCES (optional): documents behind a RAG answer, only ones this user may see
+def ask(req: AskRequest, user: rbac.CurrentUser = Depends(rbac.get_current_user)):   # RBAC: 401 if no valid user
+    rbac.set_request_user(user)                                                       # RBAC: every DB read uses this user
+    session_logger.log_event("rbac_user", user_id=user.user_id, role=user.role, regions=user.regions)   # RBAC
+        rbac.audit(event="ask", session_id=req.session_id, user_id=user.user_id, role=user.role,   # RBAC
+    rbac.audit(event="ask", session_id=req.session_id, user_id=user.user_id, role=user.role,       # RBAC
+    resp.scope = rbac.scope_info(user)                                                # RBAC
+    resp.sql = rbac.visible_sql(user, resp.sql)                                       # RBAC: RBAC_SHOW_SQL=all|admins
+    _rag_sources.set(None)                                                    # SOURCES: nothing from earlier requests
+        sources=(_cited_sources(answer) if route in ("RAG", "BOTH") else None),   # SOURCES
