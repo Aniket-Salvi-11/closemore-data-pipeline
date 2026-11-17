@@ -1,6 +1,12 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CopilotWidget } from "@/components/copilot/CopilotWidget";
+import {
+  CopilotWidget,
+  GREETING_DELAY_MS,
+  GREETING_TEXT,
+  PANEL_CLOSE_MS,
+} from "@/components/copilot/CopilotWidget";
+import { parsePosition, setConfig } from "@/lib/runtime-config";
 import { prepareCss } from "./prepare-css";
 
 beforeEach(() => window.sessionStorage.clear());
@@ -19,6 +25,16 @@ describe("prepareCss (Shadow DOM styles)", () => {
     expect(shadowCss).not.toContain("rem");
   });
 
+  it("keeps rem inside class names (selectors) unchanged, so the rule still matches the element", () => {
+    const css =
+      ".sm\\:w-\\[min\\(720px\\,calc\\(100vw-3rem\\)\\)\\]{width:min(720px,100vw - 3rem)} .min-w-\\[8rem\\]{min-width:8rem}";
+    const { shadowCss } = prepareCss(css);
+    expect(shadowCss).toContain(
+      ".sm\\:w-\\[min\\(720px\\,calc\\(100vw-3rem\\)\\)\\]{width:min(720px,100vw - 48px)}",
+    );
+    expect(shadowCss).toContain(".min-w-\\[8rem\\]{min-width:128px}");
+  });
+
   it("returns @property and @font-face separately for the page head", () => {
     const { shadowCss, documentCss } = prepareCss(raw);
     expect(documentCss).toContain("@property --tw-shadow");
@@ -28,35 +44,42 @@ describe("prepareCss (Shadow DOM styles)", () => {
   });
 });
 
-describe("CopilotWidget (launcher and panel)", () => {
-  it("starts closed with just the icon; clicking opens the chat panel", () => {
+describe("CopilotWidget (Cleo's button and panel)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    setConfig({ position: "right" });
+  });
+
+  /** Closing plays a short animation first; then the panel is removed. */
+  const finishClosing = () => act(() => vi.advanceTimersByTime(PANEL_CLOSE_MS + 10));
+
+  it("starts closed with just Cleo's face; clicking opens the chat panel", () => {
     render(<CopilotWidget />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Copilot" }));
-    expect(screen.getByRole("dialog", { name: "CloseMore AI Copilot" })).toBeInTheDocument();
-    expect(screen.getByText("What can I help you with?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ask Cleo" }));
+    expect(screen.getByRole("dialog", { name: "Cleo" })).toBeInTheDocument();
+    expect(screen.getByText("Hi, I'm Cleo")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveFocus();
   });
 
-  it("closes with the panel's close button, the icon, or Escape", () => {
+  it("closes with the panel's close button or Escape (after the closing animation)", () => {
+    vi.useFakeTimers();
     render(<CopilotWidget />);
-    const launcher = screen.getByRole("button", { name: "Open AI Copilot" });
-    fireEvent.click(launcher);
+    fireEvent.click(screen.getByRole("button", { name: "Ask Cleo" }));
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    finishClosing();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    fireEvent.click(launcher);
-    fireEvent.click(screen.getByRole("button", { name: "Close AI Copilot" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    fireEvent.click(launcher);
+    fireEvent.click(screen.getByRole("button", { name: "Ask Cleo" }));
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+    finishClosing();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ask Cleo" })).toBeInTheDocument();
   });
 
   it("stays open on the next page of the website (same browser tab)", () => {
     const { unmount } = render(<CopilotWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Copilot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask Cleo" }));
     unmount();
     render(<CopilotWidget />);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -64,25 +87,59 @@ describe("CopilotWidget (launcher and panel)", () => {
 
   it("has no user picker, no documents and no demo notes", () => {
     render(<CopilotWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Copilot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask Cleo" }));
     const panel = screen.getByRole("dialog");
     expect(panel.textContent).not.toMatch(/Switch user|Documents|Demo mode|Viewing as/);
   });
 
-  it("can be made wider for big tables", () => {
-    render(<CopilotWidget />);
-    fireEvent.click(screen.getByRole("button", { name: "Open AI Copilot" }));
+  it("size button: normal -> wide -> full screen -> normal, remembered on the next page", () => {
+    const { unmount } = render(<CopilotWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask Cleo" }));
+    expect(screen.getByRole("dialog").className).toContain("sm:w-[400px]");
     fireEvent.click(screen.getByRole("button", { name: "Make wider" }));
-    expect(screen.getByRole("dialog").className).toContain("sm:w-[min(960px");
-    expect(screen.getByRole("button", { name: "Make narrower" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog").className).toContain("sm:w-[min(720px");
+    fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    expect(screen.getByRole("dialog").className).toContain("sm:w-screen");
+    unmount();
+    render(<CopilotWidget />);
+    expect(screen.getByRole("dialog").className).toContain("sm:w-screen");
+    fireEvent.click(screen.getByRole("button", { name: "Back to normal size" }));
+    expect(screen.getByRole("dialog").className).toContain("sm:w-[400px]");
+  });
+
+  it("shows the greeting once per browser tab, not on every page", () => {
+    vi.useFakeTimers();
+    const { unmount } = render(<CopilotWidget />);
+    expect(screen.queryByText(GREETING_TEXT)).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(GREETING_DELAY_MS + 10));
+    expect(screen.getByText(GREETING_TEXT)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close greeting" }));
+    expect(screen.queryByText(GREETING_TEXT)).not.toBeInTheDocument();
+    unmount(); // the user opens another page of the website
+    render(<CopilotWidget />);
+    act(() => vi.advanceTimersByTime(GREETING_DELAY_MS + 10));
+    expect(screen.queryByText(GREETING_TEXT)).not.toBeInTheDocument();
+  });
+
+  it("data-position=left puts Cleo in the bottom-left corner", () => {
+    setConfig({ position: "left" });
+    render(<CopilotWidget />);
+    const launcherBox = screen.getByRole("button", { name: "Ask Cleo" }).parentElement;
+    expect(launcherBox?.className).toContain("left-6");
+    fireEvent.click(screen.getByRole("button", { name: "Ask Cleo" }));
+    expect(screen.getByRole("dialog").className).toContain("sm:left-6");
+    expect(parsePosition("bottom-left")).toBe("left");
+    expect(parsePosition("anything else")).toBe("right");
   });
 
   it("gives the page script open/close/toggle controls", () => {
+    vi.useFakeTimers();
     let controls: { open: () => void; close: () => void; toggle: () => void } | null = null;
     render(<CopilotWidget onReady={(c) => (controls = c)} />);
     act(() => controls?.open());
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     act(() => controls?.toggle());
+    finishClosing();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

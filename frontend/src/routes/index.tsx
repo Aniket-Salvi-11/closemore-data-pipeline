@@ -3,7 +3,7 @@ import { CopilotWidget } from "@/components/copilot/CopilotWidget";
 
 export const Route = createFileRoute("/")({
   head: () => ({
-    meta: [{ title: "CloseMore AI Copilot (development preview)" }],
+    meta: [{ title: "Cleo (development preview)" }],
   }),
   component: Index,
 });
@@ -27,8 +27,8 @@ function Index() {
       <main className="mx-auto max-w-5xl space-y-4 px-6 py-10">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="max-w-xl text-muted-foreground">
-          This page stands in for the CloseMore website. Click the round CloseMore icon in the
-          bottom-right corner to open the AI Copilot.
+          This page stands in for the CloseMore website. Click Cleo's round face in the bottom-right
+          corner to open Cleo.
         </p>
         <div className="grid gap-4 sm:grid-cols-3">
           {["Open deals", "Won this month", "Pipeline value"].map((label) => (

@@ -184,3 +184,74 @@
     animation: answer-fade-in 0.35s ease-out both;
   }
 }
+/* ---- Cleo widget animations. On the website they follow the visitor's "reduce motion" setting. ---- */
+/* The launcher button floats slowly up and down. */
+@keyframes cleo-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@utility animate-cleo-bob {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: cleo-bob 3.2s ease-in-out infinite;
+  }
+}
+
+/* The panel grows out of its corner when it opens, and shrinks back into it when it closes. */
+@keyframes cleo-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes cleo-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(16px) scale(0.92);
+  }
+}
+
+@utility animate-cleo-panel-in {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: cleo-panel-in 0.24s ease-out both;
+  }
+}
+
+/* Keep in step with PANEL_CLOSE_MS in CopilotWidget.tsx. */
+@utility animate-cleo-panel-out {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: cleo-panel-out 0.18s ease-in both;
+  }
+}
+
+/* The launcher pops in on page load and after the panel closes. */
+@keyframes cleo-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@utility animate-cleo-pop-in {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: cleo-pop-in 0.22s ease-out both;
+  }
+}

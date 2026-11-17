@@ -21,6 +21,11 @@ export function prepareCss(raw: string): PreparedCss {
   const shadowCss = raw
     .replace(AT_RULE_BLOCK, "")
     .replace(/:root\b/g, ":host")
-    .replace(/(-?\d*\.?\d+)rem\b/g, (_, n: string) => `${Number((Number(n) * 16).toFixed(4))}px`);
+    // Only in values. Inside a class name (e.g. `.sm\:w-\[min\(720px\,calc\(100vw-3rem\)\)\]`) the rem is always
+    // followed by an escaped character; converting it there renamed the selector, so the rule matched nothing.
+    .replace(
+      /(-?\d*\.?\d+)rem\b(?!\\)/g,
+      (_, n: string) => `${Number((Number(n) * 16).toFixed(4))}px`,
+    );
   return { shadowCss, documentCss };
 }

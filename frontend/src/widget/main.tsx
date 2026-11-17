@@ -1,15 +1,17 @@
 /**
- * CloseMore AI Copilot — website widget.
+ * Cleo (CloseMore AI Copilot) — website widget.
  *
- * Add ONE script tag to the website's pages (for logged-in users only):
+ * Add ONE script tag to the website's shared layout for LOGGED-IN pages only (never on the login page or
+ * other public pages); it then appears on every page:
  *
  *   <script src="/copilot/closemore-copilot.js" data-api-base="/api/copilot" defer></script>
  *
- * It adds the round CloseMore icon in the bottom-right corner; clicking it opens the chat.
+ * It adds Cleo's round face in the bottom-right corner; clicking it opens the chat.
  * Everything lives inside a Shadow DOM, so the website's CSS and the chat's CSS never mix.
  *
  * Options (data attributes on the script tag):
  *   data-api-base   where the website's Copilot endpoints are (default "/api/copilot")
+ *   data-position   "right" (default) or "left": which bottom corner Cleo uses
  *   data-fonts      "false" to skip loading the DM Sans font from Google Fonts
  *   data-auto       "false" to start it yourself with window.CloseMoreCopilot.init({...})
  *
@@ -21,13 +23,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { CopilotWidget, type CopilotControls } from "@/components/copilot/CopilotWidget";
 import { clearStoredChat } from "@/hooks/use-chat";
 import { PortalContainerProvider } from "@/lib/portal-container";
-import { setConfig } from "@/lib/runtime-config";
+import { parsePosition, setConfig, type CopilotPosition } from "@/lib/runtime-config";
 import rawCss from "@/styles.css?inline";
 import { prepareCss } from "./prepare-css";
 
 interface InitOptions {
   apiBase?: string;
   loadFonts?: boolean;
+  /** "right" (default) or "left". */
+  position?: CopilotPosition | string;
 }
 
 const HOST_ID = "closemore-copilot";
@@ -47,6 +51,7 @@ function addToHead(id: string, make: () => HTMLElement): void {
 function init(options: InitOptions = {}): void {
   if (root) return; // already running
   if (options.apiBase) setConfig({ apiBase: options.apiBase });
+  if (options.position) setConfig({ position: parsePosition(options.position) });
 
   const { shadowCss, documentCss } = prepareCss(rawCss);
   addToHead("closemore-copilot-doc-css", () => {
@@ -107,6 +112,7 @@ const api = {
     clearStoredChat();
     try {
       window.sessionStorage.removeItem("closemore-copilot-open");
+      window.sessionStorage.removeItem("closemore-copilot-greeted"); // the next person gets the greeting again
     } catch {
       // ignore
     }
@@ -128,6 +134,7 @@ if (script?.dataset["auto"] !== "false") {
   const start = () =>
     init({
       ...(script?.dataset["apiBase"] ? { apiBase: script.dataset["apiBase"] } : {}),
+      ...(script?.dataset["position"] ? { position: script.dataset["position"] } : {}),
       loadFonts: script?.dataset["fonts"] !== "false",
     });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);

@@ -45,7 +45,13 @@ For setup steps see `HANDOFF_FOR_MAIN_DEVELOPER.md` and `docs/`.
    ("and his deals?").
 4. **Understanding** (`understander.py`). One call to the brain model returns JSON: the route
    (`CHAT | SQL | RAG | BOTH`), whether the message depends on earlier turns, a standalone rewrite of the question,
-   the names it mentions, and a safety flag.
+   the names it mentions, a safety flag, and:
+   - **relevance**: an *irrelevant* question (weather, poems, general knowledge) gets a fixed "I can only help
+     with your CRM data and documents" reply; an *ambiguous* one gets a follow-up question from Cleo instead of
+     a guess. Missing = relevant (normal pipeline).
+   - **BOTH split**: for a CRM + document question, the CRM part and the document part as two questions, so
+     each side only gets its own part and only CRM names are looked up in the CRM. If a company or product
+     named in a SQL question is not in the CRM, code upgrades it to BOTH and sends that part to the documents.
 5. **Names → ids** (`entity_lookup.py`). People, deals, companies and products are looked up in the database (exact
    match first, then a spelling-tolerant match). If two people share a name, the user gets a lettered "which one?"
    list.
@@ -189,15 +195,15 @@ The output is one file, `dist-widget/closemore-copilot.js`, with styles and imag
 
 | Path | What it does |
 |---|---|
-| `src/widget/main.tsx` | widget entry: reads the `<script>` attributes, mounts the chat in a Shadow DOM, exposes `window.CloseMoreCopilot` (`open`, `close`, `toggle`, `reset`, `init`, `destroy`) |
-| `src/widget/prepare-css.ts` | adapts the stylesheet for the Shadow DOM (no effect on the website's CSS, and the other way round) |
+| `src/widget/main.tsx` | widget entry: reads the `<script>` attributes (`data-api-base`, `data-position`, `data-fonts`, `data-auto`), mounts the chat in a Shadow DOM, exposes `window.CloseMoreCopilot` (`open`, `close`, `toggle`, `reset`, `init`, `destroy`) |
+| `src/widget/prepare-css.ts` | adapts the stylesheet for the Shadow DOM (no effect on the website's CSS, and the other way round; `rem` becomes `px` in values only, never in class names) |
 | `src/widget/no-mock.ts` | replaces the simulated answers in the website build, so sample data can never ship |
-| `src/components/copilot/` | `CopilotWidget` (round button, open/close, wide mode) and `CopilotPanel` (the chat panel) |
+| `src/components/copilot/` | `CopilotWidget` (Cleo's face button, greeting bubble once per tab, open/close and resize animations, normal / wide / full-screen sizes, bottom-right or bottom-left) and `CopilotPanel` (the chat panel: Cleo header, conversation, input) |
 | `src/components/chat/` | the chat pieces: message list item, composer, answer text (safe Markdown), choice lists, people chips, result tables (sort, search, copy, fullscreen), charts, source chips, thumbs up/down |
 | `src/components/ui/` | standard UI building blocks (shadcn/ui); only those the widget imports are bundled |
 | `src/hooks/use-chat.ts` | the conversation: `session_id`, sending, one question at a time, saving the chat in sessionStorage for the tab |
 | `src/lib/api-service.ts` | the only network code: `POST {apiBase}/ask` and `/feedback` with the login cookie; error handling (401, 4xx `detail`, 5xx/timeout with Retry; 150 s timeout) |
-| `src/lib/runtime-config.ts` | where requests go (`data-api-base`, default `/api/copilot`) |
+| `src/lib/runtime-config.ts` | where requests go (`data-api-base`, default `/api/copilot`) and which corner Cleo uses (`data-position`) |
 | `src/lib/result-data.ts`, `table-view.ts`, `chart-layout.ts`, `copy-text.ts`, `people.ts`, `cascade.ts`, `route-badge.ts`, `row-number-pref.ts`, `thinking-stages.ts`, `format-message-meta.ts`, `assets.ts`, `portal-container.tsx`, `utils.ts` | display helpers: tables, charts, copying, letters, animations, badges, loading text, time, built-in images, pop-up placement |
 | `src/lib/mock-api.ts`, `mock-rbac.ts`, `mock-users.ts`, `demo-users.ts` | sample answers for local development only (`VITE_USE_MOCK_API=true`); replaced by `no-mock.ts` in the website build |
 | `src/routes/`, `router.tsx`, `start.ts`, `server.ts`, `routeTree.gen.ts`, `lib/error-*.ts`, `lib/lovable-error-reporting.ts` | a small development page (`npx vite dev`) that shows the widget on a stand-in website |
@@ -206,7 +212,7 @@ The output is one file, `dist-widget/closemore-copilot.js`, with styles and imag
 | `vite.widget.config.ts` | the widget build: one file, ignores `.env` files, never includes mock data |
 | `vite.config.ts`, `tsconfig.json`, `eslint.config.js`, `components.json`, `.prettierrc`, `.prettierignore` | build, type check, lint and format settings |
 | `package.json`, `package-lock.json` | dependencies and scripts (`build:widget`, `test`, `lint`) |
-| `public/` | logos and icons (bundled into the widget) |
+| `public/` | Cleo's pictures (`cleo_face.png`, `cleo_body.png`), logos and icons (bundled into the widget) |
 
 ### `archive/`
 

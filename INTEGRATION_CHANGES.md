@@ -215,3 +215,36 @@ Checked while reviewing (no change needed):
 - `db/test_prod_migration.py`: needs a local PostgreSQL with a schema copy of `closemore_next`.
 - The Docker image: it was not built.
 - The widget inside the real website, and `widget-demo/index.html` in a browser.
+
+## Cleo, relevance check, BOTH split and fixes (2026-11-17)
+
+Brought over from the testing system (demo commit `4599898`), adapted for the website.
+
+**Backend** (`backend/server.py`, `understander.py`, `sql_templates.py`, `test_phase4_parts.py`; applied as a
+patch on top of the website-connector changes, nothing of the connector touched):
+- The assistant is **Cleo** (`ASSISTANT_NAME=Cleo` in `.env.example`, also the code default).
+- **Relevance check** in the orchestrator call: irrelevant -> fixed rejection, ambiguous -> follow-up question.
+- **BOTH split**: CRM part and document part answered separately; only CRM names looked up in the CRM; kept
+  through "which one?"; a company/product not in the CRM sends its part to the documents.
+- **Fixes**: filter words ("open", "won", "this month") skip the fixed deals template; for BOTH answers with a
+  table, the sentence about the rows is written by code (no miscounts).
+- Orchestrator prompt about 2,340 tokens (test limit 2,400).
+
+**Widget** (`frontend/`):
+- Cleo's face button (floating, "Ask Cleo" tooltip), greeting bubble **once per tab**, Cleo header, Cleo avatar
+  and empty-chat picture, "Powered by CloseMore", placeholder "Ask Cleo about your deals…".
+- Panel sizes **normal 400 × 680 / wide / full screen**, with open, close and resize animations that follow
+  the visitor's **reduce-motion** setting. Open/closed and size are kept when the user moves to another page;
+  a restored chat opens at the newest message.
+- New script option **`data-position="left"`** (bottom-left corner).
+- "Which one?" lists: **Show selected** appears from the first tick.
+- **Bug fix in `widget/prepare-css.ts`**: `rem` inside class names was converted too, so those rules matched
+  nothing in the Shadow DOM (e.g. the wide panel width, table cell and chart tooltip widths). Now only values
+  are converted.
+- `docs/WIDGET_INTEGRATION.md` rewritten for Cleo: tag only in the logged-in layout (never on the login
+  page), the new option, behaviour across pages.
+
+**Checked:** backend contract 6/6, server 150/150, phase4 12/12, guardrails 81/81, relevance 11/11, split
+12/12, small fixes 8/8; frontend 195/195 tests, type check clean; built widget 1,077 kB (no mock data, no
+local address); browser check of the built widget on two test pages: 26/26 (button, greeting once, sizes,
+answer, still open with the same chat on the next page, close animation, reduce motion, phone).

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ICON_URL } from "@/lib/assets";
+import { CLEO_FACE_URL } from "@/lib/assets";
 import { useTypewriter } from "@/hooks/use-typewriter";
 import { thinkingStage } from "@/lib/thinking-stages";
 import type { AnswerChoice } from "@/lib/api-service";
@@ -101,10 +101,10 @@ function AssistantMessage({
   return (
     <div className="flex animate-answer-in items-start gap-3">
       <img
-        src={ICON_URL}
+        src={CLEO_FACE_URL}
         alt=""
         aria-hidden="true"
-        className="mt-0.5 size-7 shrink-0 rounded-full border border-border bg-white"
+        className="mt-0.5 size-7 shrink-0 rounded-full"
       />
       <div className="min-w-0 flex-1 pt-0.5">
         {badge ? (
@@ -252,10 +252,10 @@ export function ThinkingIndicator() {
   return (
     <div className="flex items-start gap-3" aria-label="Generating answer">
       <img
-        src={ICON_URL}
+        src={CLEO_FACE_URL}
         alt=""
         aria-hidden="true"
-        className="mt-0.5 size-7 shrink-0 rounded-full border border-border bg-white"
+        className="mt-0.5 size-7 shrink-0 rounded-full"
       />
       <div className="flex items-center gap-1.5 pt-2" aria-hidden="true">
         {[0, 1, 2].map((i) => (
