@@ -78,11 +78,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "CloseMore AI Copilot" },
-      { name: "description", content: "Ask questions about your CRM data and uploaded documents." },
+      { title: "Cleo" },
+      { name: "description", content: "Ask Cleo about your CRM data and uploaded documents." },
       { name: "author", content: "CloseMore" },
-      { property: "og:title", content: "CloseMore AI Copilot" },
-      { property: "og:description", content: "Ask questions about your CRM data and uploaded documents." },
+      { property: "og:title", content: "Cleo" },
+      {
+        property: "og:description",
+        content: "Ask Cleo about your CRM data and uploaded documents.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

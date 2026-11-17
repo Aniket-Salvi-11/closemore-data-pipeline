@@ -653,7 +653,7 @@ async function mockAsk(question: string): Promise<AskResponse> {
   if (/priya/.test(q) && /all data|everything/.test(q)) {
     return {
       answer:
-        "Everything about Priya Nair: 4 owned deals worth 10,000, 1 deal-team deal and 1 contact. Tasks and activities are not available in the Copilot.",
+        "Everything about Priya Nair: 4 owned deals worth 10,000, 1 deal-team deal and 1 contact. Tasks and activities are not available to Cleo.",
       route: "SQL",
       tables: [
         {

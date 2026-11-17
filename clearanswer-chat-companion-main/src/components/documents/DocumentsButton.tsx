@@ -16,22 +16,42 @@ import { useActiveUser } from "@/lib/active-user";
  * Header button that opens the Documents side panel. State lives here (not inside the sheet),
  * so a document keeps processing and polling after the panel is closed.
  */
-export function DocumentsButton() {
+export function DocumentsButton({ compact = false }: { compact?: boolean }) {
   const user = useActiveUser();
   const docs = useDocuments(user?.user_id ?? null);
+  const label =
+    docs.processingCount > 0 ? `Documents (${docs.processingCount} processing)` : "Documents";
 
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <FileText className="size-4" aria-hidden="true" />
-          Documents
-          {docs.processingCount > 0 ? (
-            <span className="rounded-md bg-(--brand-orange)/20 px-1.5 text-xs">
-              {docs.processingCount} processing
-            </span>
-          ) : null}
-        </Button>
+        {compact ? (
+          // Icon only (Cleo's slim toolbar); the number of documents still processing shows as a dot.
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative size-8 text-muted-foreground hover:text-foreground"
+            aria-label={label}
+            title={label}
+          >
+            <FileText className="size-4" aria-hidden="true" />
+            {docs.processingCount > 0 ? (
+              <span className="absolute -top-0.5 -right-0.5 rounded-full bg-brand-orange px-1 text-[10px] leading-4 font-semibold text-white">
+                {docs.processingCount}
+              </span>
+            ) : null}
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <FileText className="size-4" aria-hidden="true" />
+            Documents
+            {docs.processingCount > 0 ? (
+              <span className="rounded-md bg-(--brand-orange)/20 px-1.5 text-xs">
+                {docs.processingCount} processing
+              </span>
+            ) : null}
+          </Button>
+        )}
       </SheetTrigger>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>

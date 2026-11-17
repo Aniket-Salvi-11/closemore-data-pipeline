@@ -313,11 +313,18 @@ _GREETING = re.compile(r"^\s*(hi+|hello+|hey+|hola|namaste|good\s+(morning|after
 _THANKS_BYE = re.compile(r"^\s*(thanks?|thank\s+you|thx|ok(ay)?|cool|great|bye|goodbye)\b[\s!.,?]*$", re.I)
 _DATA_WORDS = re.compile(r"\b(deals?|owners?|contacts?|products?|pipelines?|line items?|commissions?|arr|tcv|tlv)\b", re.I)
 
-ASSISTANT_NAME = os.environ.get("ASSISTANT_NAME", "the CloseMore AI Copilot")
+ASSISTANT_NAME = os.environ.get("ASSISTANT_NAME", "Cleo")
 APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Kolkata")
 GREETING_REPLY = (f"Hi! I'm {ASSISTANT_NAME}. I can answer questions about your CRM data "
                   "(deals, owners, products, pipelines) and about your uploaded documents. What would you like to know?")
 THANKS_REPLY = "You're welcome! Let me know if you'd like to look into anything else."
+# Relevance (decided by the understander, the first model call):
+#   irrelevant -> this fixed reply, nothing else runs; ambiguous -> the understander's follow-up question
+#   (or this fallback when it gave none or it failed the output check)
+IRRELEVANT_REPLY = (f"I'm {ASSISTANT_NAME}. I can only help with your CRM data (deals, owners, contacts, products, "
+                    "pipelines) and your uploaded documents. Please ask me something about those.")
+AMBIGUOUS_FALLBACK = ("Could you tell me a bit more about what you'd like to see? For example: your deals, your contacts, "
+                      "or something from a document.")
 _HOW_ARE_YOU = re.compile(r"^\s*(how\s+are\s+you|how\s+r\s+u|how'?s\s+it\s+going|what'?s\s+up|sup)\b[\s!.,?]*$", re.I)
 
 _SMALL_TALK = {
@@ -442,7 +449,7 @@ def chat_reply(question):
     fixed = small_talk_reply(question)
     if fixed:
         return fixed
-    prompt = f"""You are the CloseMore AI Copilot, an assistant inside a CRM. You can answer questions about CRM data
+    prompt = f"""You are {ASSISTANT_NAME}, the AI assistant inside the CloseMore CRM. You can answer questions about CRM data
 (deals, owners, contacts, products, pipelines) and about uploaded documents (proposals, contracts, invoices).
 Reply briefly and politely to the message below. Do NOT invent any CRM data or document facts. If the user seems to
 want data, invite them to ask a specific question.
@@ -591,7 +598,7 @@ def _read_clarification(key, message):
         picks = session_store.match_letters(message, len(cands))
         if picks == "invalid" or (wanted is not None and isinstance(picks, list)
                                   and not any(cands[i].get("group", 0) in pend.get("missing", []) for i in picks)):
-            session_store.set_pending(key, {k: v for k, v in pend.items() if k != "created"})
+            _set_pending(key, {k: v for k, v in pend.items() if k != "created"})
             offer = [letters[i] for i in (wanted or range(len(cands)))
                      if wanted is None or cands[i].get("group", 0) in pend.get("missing", [])]
             session_logger.log_event("clarification", typed=pend.get("typed"), chosen="invalid")
@@ -610,7 +617,7 @@ def _read_clarification(key, message):
         if isinstance(picks, list) and len(groups) > 1:     # every name needs at least one pick
             missing = [gi for gi in range(len(groups)) if not any(cands[i].get("group", 0) == gi for i in picks)]
             if missing:
-                session_store.set_pending(key, dict({k: v for k, v in pend.items() if k != "created"},
+                _set_pending(key, dict({k: v for k, v in pend.items() if k != "created"},
                                                     partial=sorted(picks), missing=missing))
                 offer = [letters[i] for i in range(len(cands)) if cands[i].get("group", 0) in missing]
                 whom = " and ".join(groups[gi] for gi in missing)
@@ -647,8 +654,19 @@ def _read_clarification(key, message):
                     [cands[i].get("letter") or LETTERS[i] for i in idx])
         label = _people_phrase(chosen, every=len(chosen) == len(cands) and len(pend.get("groups") or [""]) == 1,
                                typed=pend.get("typed"))
-    return SimpleNamespace(question=pend["question"], route=pend.get("route") or "SQL", pinned=chosen,
-                           note=f"Showing results for {label}.")
+    split = pend.get("split")                    # BOTH split saved with the question: (CRM part, document part, whole question)
+    return SimpleNamespace(question=split[2] if split else pend["question"], route=pend.get("route") or "SQL",
+                           pinned=chosen, note=f"Showing results for {label}.",
+                           parts=(split[0], split[1]) if split else None)
+
+
+def _set_pending(key, pend):
+    """session_store.set_pending, keeping this turn's BOTH split with the "which one?" question, so the answer to it
+    runs the CRM part and the document part separately again (instead of the CRM part only)."""
+    split = _turn_split.get()
+    if split and not pend.get("split"):
+        pend = dict(pend, split=list(split))
+    session_store.set_pending(key, pend)
 
 
 def _remember_turn(key, question, route, body, sql_result=None, status=None, note=None):
@@ -745,7 +763,7 @@ def _read_letter_refs(key, question):
 
 def _remember_ambiguity(key, question, route, typed, candidates):
     if key and candidates:
-        session_store.set_pending(key, {"question": question, "route": route, "typed": typed,
+        _set_pending(key, {"question": question, "route": route, "typed": typed,
                                         "candidates": [_entity_dict(c) for c in candidates]})
 
 
@@ -892,6 +910,44 @@ def _crm_names_route(und, message, route):
     session_logger.log_event("route_override", frm="CHAT", to="SQL", names=found)
     question = message if sql_templates.match(message) else "tell me about " + " and ".join(found)
     return "SQL", question
+
+
+_CLAUSE_SPLIT = re.compile(r"\s*(?:,|;|\band\b|\balso\b|\bplus\b)\s*", re.I)
+
+
+def _docs_names_split(und, question, route):
+    """SQL route, but a company or product named in the question is not in the CRM ("Imran khan deals details and Stem
+    Company details"): that part is about the uploaded documents. Upgrade to BOTH with a split: the clauses naming the
+    unknown company/product go to the document search, the rest to SQL. Returns the route (unchanged when nothing is
+    unknown, when the lookup fails, or when no clause would be left for SQL)."""
+    if route != "SQL" or und.sql_part or und.doc_part:
+        return route
+    unknown = []
+    for name, typ in und.names:
+        if typ not in ("company", "product"):
+            continue
+        try:
+            res = entity_lookup.resolve_person(name, get_lookup_connection, schema_dict,
+                                               kinds=understander.ENTITY_KINDS.get(typ, ("company",)))
+            if res.status == "not_found":           # may be stored as another kind (a deal named after the company)
+                res = entity_lookup.resolve_person(name, get_lookup_connection, schema_dict,
+                                                   kinds=("deal", "company", "product"))
+        except Exception as e:
+            log.warning(f"name check for documents failed ({e}); keeping the SQL route")
+            return route
+        if res.status == "not_found":
+            unknown.append(name)
+    if not unknown:
+        return route
+    clauses = [c.strip() for c in _CLAUSE_SPLIT.split(question.strip().rstrip("?.! ")) if c.strip()]
+    doc_c = [c for c in clauses if any(understander.name_in_text(n, c) for n in unknown)]
+    sql_c = [c for c in clauses if c not in doc_c]
+    if not doc_c or not sql_c:
+        return route                                # all about the unknown name: the normal SQL -> documents fallback
+    und.sql_part, und.doc_part = " and ".join(sql_c), " and ".join(doc_c)
+    session_logger.log_event("route_override", frm="SQL", to="BOTH", reason="not in CRM", names=unknown)
+    log.info(f"{unknown} not in the CRM: SQL -> BOTH ({und.sql_part!r} | {und.doc_part!r})")
+    return "BOTH"
 
 
 def _model_safety_block(und, message):
@@ -1560,7 +1616,7 @@ def _disambiguate(typed, candidates, question, route="SQL", collect=False):
             note += (f" {len(others)} other {_noun(others)} match this name; ask with "
                      + ("their full name, role or region" if _noun(others) == "people" else "more of the name") + " to see them.")
         if key:
-            session_store.set_pending(key, {"question": question, "route": route, "typed": typed, "auto": True,
+            _set_pending(key, {"question": question, "route": route, "typed": typed, "auto": True,
                                             "chosen_ids": [chosen.id],
                                             "candidates": [dict(_entity_dict(c), label=l, deals=(prof.get(c.id) or {}).get("deals"))
                                                            for c, l in zip(cands, _labels(cands, prof))]})
@@ -1626,7 +1682,7 @@ def _ask_one(g, question, route):
                       + [{"label": "Both" if len(left) == 2 else f"All {len(left)}", "value": "all", "kind": "all"}])
     key = _turn_key.get()
     if key:
-        session_store.set_pending(key, {"question": question, "route": route, "typed": g.typed, "groups": [g.named],
+        _set_pending(key, {"question": question, "route": route, "typed": g.typed, "groups": [g.named],
                                         "candidates": _pending_candidates([g], letters)})
     session_logger.log_event("disambiguation", typed=g.typed, decided="ask", count=len(left))
     return SimpleNamespace(ask=msg, candidates=left)
@@ -1644,7 +1700,7 @@ def _ask_step_by_step(groups, question, route):
             pend.update(others=[], queue=[{"named": g.named, "typed": g.typed, "noun": g.noun, "labels": list(g.labels),
                                 "candidates": _pending_candidates([g], LETTERS[:len(g.cands)])} for g in groups[1:]],
                         done=[], steps=n, step=1)
-            session_store.set_pending(key, pend)
+            _set_pending(key, pend)
     _turn_choice_prompt.set(f"(1 of {n}) " + (_turn_choice_prompt.get() or ""))
     session_logger.log_event("disambiguation", typed=[g.typed for g in groups], decided="step by step", count=sum(len(g.cands) for g in groups))
     return SimpleNamespace(ask=f"You named {n} people with many matches, so I'll ask one name at a time.\n\n(1 of {n}) " + res.ask,
@@ -1666,9 +1722,10 @@ def _ask_next_step(key, pend, picked, others=()):
     _turn_choice_prompt.set(f"({step} of {steps}) I found {len(cands)} {nxt['noun']} named {nxt['named']}. Which one?")
     _turn_choices.set([{"label": f"{L}. {l}", "value": L, "kind": "option", "letter": L} for L, l in zip(letters, nxt["labels"])]
                       + [{"label": "Both" if len(cands) == 2 else f"All {len(cands)}", "value": "all", "kind": "all"}])
-    session_store.set_pending(key, {"question": pend["question"], "route": pend.get("route") or "SQL", "typed": nxt["typed"],
+    _set_pending(key, {"question": pend["question"], "route": pend.get("route") or "SQL", "typed": nxt["typed"],
                                     "groups": [nxt["named"]], "candidates": cands, "queue": queue, "done": done,
-                                    "others": (pend.get("others") or []) + list(others), "steps": steps, "step": step})
+                                    "others": (pend.get("others") or []) + list(others), "steps": steps, "step": step,
+                                    "split": pend.get("split")})
     session_logger.log_event("clarification", typed=nxt["typed"], chosen="step", step=step)
     return SimpleNamespace(route=pend.get("route") or "SQL", ask=msg)
 
@@ -1698,7 +1755,7 @@ def _ask_groups(groups, question, route):
     _turn_choices.set(choices + [{"label": f"All {total}", "value": "all", "kind": "all"}])
     key = _turn_key.get()
     if key:
-        session_store.set_pending(key, {"question": question, "route": route, "typed": ", ".join(g.typed for g in groups),
+        _set_pending(key, {"question": question, "route": route, "typed": ", ".join(g.typed for g in groups),
                                         "groups": [g.named for g in groups], "candidates": _pending_candidates(groups, letters)})
     session_logger.log_event("disambiguation", typed=[g.typed for g in groups], decided="ask", count=total)
     return SimpleNamespace(ask=msg, candidates=[c for g in groups for c in g.cands])
@@ -1801,7 +1858,7 @@ def _person_everything(people, question):
     worth = f" worth {answer_text.fmt_number(round(counts.get('value', 0), 2))}" if n_own else ""
     summary = (f"Everything{seen} about {who}: {n_own} owned {'deal' if n_own == 1 else 'deals'}{worth}, "
                f"{n_team} deal-team {'deal' if n_team == 1 else 'deals'}, {n_con} {'contact' if n_con == 1 else 'contacts'} "
-               f"and {n_prod} product {'line' if n_prod == 1 else 'lines'}. Tasks and activities are not available in the Copilot.")
+               f"and {n_prod} product {'line' if n_prod == 1 else 'lines'}. Tasks and activities are not available to {ASSISTANT_NAME}.")
     session_logger.log_event("person_all", people=[p.id for p in people], parts={k: v for k, v in counts.items() if k != "value"})
     _note_entities(people)
     return {"status": "rows", "sql": ";\n\n".join(sqls), "columns": profile[0], "rows": profile[1], "error": None,
@@ -2156,6 +2213,7 @@ _turn_people: ContextVar = ContextVar("turn_people", default=None)       # sever
 _turn_choice_prompt: ContextVar = ContextVar("turn_choice_prompt", default=None)   # short "which one?" line when choices are sent
 _turn_letter_pin: ContextVar = ContextVar("turn_letter_pin", default=None)   # "deals of A, H": the people + text for templates
 _turn_letter_table: ContextVar = ContextVar("turn_letter_table", default=None)   # a NEW letter list this turn (every choice)
+_turn_split: ContextVar = ContextVar("turn_split", default=None)   # BOTH split (CRM part, document part, whole question)
 
 
 def _note_entities(entities):
@@ -2255,6 +2313,12 @@ def synthesize_answer(question, sql_result=None, rag_answer=None, table_shown=Fa
     if has_rows and rag_answer is None and (table_shown or people):
         _log_answer("code", reason="table" if table_shown else "several people")
         return code_text
+    # 1c) BOTH with a table: the same rule for the CRM part. CODE writes the sentence about the rows, followed by the
+    #     document answer unchanged (it is already grounded, with its sources). The model miscounted the rows here
+    #     ("2 open deals" above a 3-row table). Without a table (e.g. a count), the model still links the two parts.
+    if has_rows and rag_answer is not None and (table_shown or people) and code_text:
+        _log_answer("code+documents", reason="table" if table_shown else "several people")
+        return _code_fallback(code_text, rag_answer)
 
     # 2) Everything else: the model writes it from a SMALL slice of the rows, and the result is checked in code.
     context_parts = []
@@ -2283,6 +2347,10 @@ def synthesize_answer(question, sql_result=None, rag_answer=None, table_shown=Fa
     cites = answer_text.cited_sources(rag_answer)
     source_note = ("The document answer cites its documents as (Source N). Keep every (Source N) reference exactly as written, "
                    "right after the fact it supports. Do not renumber, add or remove source numbers.\n" if cites else "")
+    # BOTH: answer both parts and connect them where the context really links them (the same deal, person or company)
+    both_note = ("The question has a CRM part and a document part: answer both. Where the document information is about the "
+                 "same deal, person or company as the rows, connect them in one sentence. Never invent a link the context "
+                 "does not show.\n" if (has_rows and rag_answer is not None) else "")
     prompt = f"""Answer the question using ONLY the context below.
 
 If context includes an SQL Result, that is an authoritative structured fact from the live database.
@@ -2299,7 +2367,7 @@ Use the column headings to decide what each value is (a contact's name is not th
 
 Write the answer directly to a CRM user. Never mention "SQL", "queries", "context" or other internal steps.
 If a value shows "(empty)", say it is not recorded.
-{table_note}{source_note}
+{table_note}{source_note}{both_note}
 Context:
 {context}
 
@@ -2515,11 +2583,14 @@ def _fallback_to_sql(question, pinned):
     return f"{FALLBACK_TO_SQL_NOTE}\n\n{body}", res
 
 
-def _run_pipeline(question, is_retry, route=None, pinned=()):
-    """Returns (route, body, sql_result, offer_retry). route: decided by the understander, else by orchestrate()."""
+def _run_pipeline(question, is_retry, route=None, pinned=(), parts=None):
+    """Returns (route, body, sql_result, offer_retry). route: decided by the understander, else by orchestrate().
+    parts: for BOTH, (CRM part, document part) from the understander; each side then gets only its own part.
+    Without it both sides get the whole question (as before)."""
     route = route or orchestrate(question)
     log.info(f"Routed to: {route}")
     session_logger.log_event("route", route=route)
+    sql_question, doc_question = parts if (route == "BOTH" and parts) else (question, question)
 
     if route == "CHAT":
         return route, chat_reply(question), None, False
@@ -2530,14 +2601,15 @@ def _run_pipeline(question, is_retry, route=None, pinned=()):
 
     sql_result = rag_answer = None
     if route in ("SQL", "BOTH"):
-        sql_result = run_sql_agent(question, sql_url, pinned)
+        sql_result = run_sql_agent(sql_question, sql_url, pinned)
         if sql_result["status"] == "blocked":
             return "BLOCKED", guardrails.REPLIES["sql_blocked"], sql_result, False
-        if sql_result["status"] in ("not_found", "ambiguous"):
+        if sql_result["status"] == "ambiguous" or (sql_result["status"] == "not_found" and route != "BOTH"):
             return route, sql_result["message"], sql_result, False
+        # BOTH + not_found: the CRM part found nobody, but the document part still runs (its note is added below)
         if sql_result["status"] == "rows":
             _drop_private(sql_result)
-            sql_result["show_ids"] = _wants_ids(question)
+            sql_result["show_ids"] = _wants_ids(sql_question)
             table, chart = result_view.build(*_for_display(sql_result["columns"], sql_result["rows"]), show_ids=sql_result["show_ids"])
             if sql_result.get("tables"):             # "everything about X": the parts come as several titled tables
                 table = chart = None
@@ -2547,7 +2619,7 @@ def _run_pipeline(question, is_retry, route=None, pinned=()):
             sql_result["scoped"] = _is_scoped(sql_result.get("entity_id"))
             session_logger.log_event("table_built", table=bool(table), rows=len(sql_result["rows"]), chart=chart)
     if route in ("RAG", "BOTH"):
-        chunks, rag_question = _retrieve(question)                          # with one spelling-corrected retry
+        chunks, rag_question = _retrieve(doc_question)                      # with one spelling-corrected retry
         _rag_sources.set(_sources_from(chunks))                              # SOURCES
         rag_answer, rag_why = _document_answer(rag_question, chunks)       # judge mode: None = documents don't answer it
         if rag_answer is None:
@@ -2584,8 +2656,17 @@ def _run_pipeline(question, is_retry, route=None, pinned=()):
     # BOTH
     if status == "rows":
         return route, synthesize_answer(question, sql_result, rag_answer, table_shown=bool(sql_result.get("table"))), sql_result, False
-    note = ("No matching CRM records were found for this question." if status == "empty"
-            else "I couldn't retrieve CRM records for this question.")
+    if parts:
+        # split question: name exactly which part found nothing, instead of a general error about the whole question
+        if status == "not_found" and sql_result.get("message"):
+            note = sql_result["message"]                          # e.g. I couldn't find anyone named "X".
+        elif status == "empty":
+            note = f"No CRM records matched: {sql_question}"
+        else:
+            note = f"I couldn't get the CRM records for: {sql_question}"
+    else:
+        note = ("No matching CRM records were found for this question." if status == "empty"
+                else "I couldn't retrieve CRM records for this question.")
     return route, f"{rag_answer}\n\n{note}", sql_result, False
 
 
@@ -2811,6 +2892,7 @@ def _handle_question(req, question):
     _turn_choice_prompt.set(None)
     _turn_letter_pin.set(None)
     _turn_letter_table.set(None)
+    _turn_split.set(None)
     clarified = _read_clarification(store_key, question)      # the answer to "which one did you mean?"
     if clarified is not None and getattr(clarified, "ask", None):   # "A, K" when only A-D were offered: ask again
         return _reply(question, clarified.route, clarified.ask)
@@ -2856,10 +2938,13 @@ def _handle_question(req, question):
     with _pipeline_lock:
         try:
             pinned = []
+            parts = None                            # BOTH split into (CRM part, document part), when the understander gave one
             letters = _read_letter_refs(store_key, run_question) if clarified is None and not is_retry else None
             if clarified is not None:               # answered "which one?": run the earlier question with the chosen person(s)
                 effective, rewritten, planned, pinned = clarified.question, False, clarified.route, clarified.pinned
                 notes.append(clarified.note)
+                if planned == "BOTH" and getattr(clarified, "parts", None):   # the BOTH split asked before "which one?"
+                    parts = clarified.parts
             elif letters is not None and getattr(letters, "error", None):
                 return _reply(question, "SQL", letters.error)
             elif letters is not None:               # "deals of A, H" / "their deals" after an answer with letters
@@ -2874,6 +2959,20 @@ def _handle_question(req, question):
                     blocked = _model_safety_block(und, run_question)
                     if blocked:
                         return _reply(question, "BLOCKED", blocked)
+                    # ---- relevance (from the same understander call) ----
+                    if und.relevance == "irrelevant":           # not about the CRM / documents / assistant: reject
+                        log.info("Understander: irrelevant question -- rejected")
+                        session_logger.log_event("relevance", decision="irrelevant")
+                        return _reply(question, "BLOCKED", IRRELEVANT_REPLY)
+                    if und.relevance == "ambiguous":            # unclear what is wanted: ask a follow-up first
+                        ask, flag = guardrails.check_output(und.clarify or AMBIGUOUS_FALLBACK)
+                        if flag:
+                            ask = AMBIGUOUS_FALLBACK
+                        log.info("Understander: ambiguous question -- asking a follow-up")
+                        session_logger.log_event("relevance", decision="ambiguous", clarify=ask)
+                        # kept in the history, so the user's answer is read as a follow-up of this question
+                        _remember_turn(store_key, run_question, "CHAT", None, status="clarification", note=ask)
+                        return _reply(question, "CHAT", ask)
                 if und is not None and not und.route_only:
                     effective, rewritten = (und.question, True) if und.related else (run_question, False)
                     planned = _route_overrides(und.route, effective)
@@ -2890,8 +2989,19 @@ def _handle_question(req, question):
                     planned, crm_question = _crm_names_route(und, run_question, planned)
                     if crm_question:
                         effective = crm_question
-                    pinned, name_notes, unclear = _resolve_names(und, planned, effective)
-                    effective = getattr(und, "split_question", None) or effective
+                    # a company / product the CRM doesn't know: that part goes to the documents (SQL -> BOTH)
+                    planned = _docs_names_split(und, effective, planned)
+                    if planned == "BOTH" and und.sql_part and und.doc_part:
+                        # BOTH, split by the understander: only names in the CRM part are looked up in the CRM, and
+                        # each side later gets only its own part (a document name never goes to SQL)
+                        und.names = [(n, t) for n, t in und.names if understander.name_in_text(n, und.sql_part)]
+                        _turn_split.set((und.sql_part, und.doc_part, effective))   # kept if "which one?" is asked
+                        pinned, name_notes, unclear = _resolve_names(und, planned, und.sql_part)
+                        parts = (getattr(und, "split_question", None) or und.sql_part, und.doc_part)
+                        session_logger.log_event("both_split", sql=parts[0], docs=parts[1])
+                    else:
+                        pinned, name_notes, unclear = _resolve_names(und, planned, effective)
+                        effective = getattr(und, "split_question", None) or effective
                     notes += name_notes
                     if unclear:                     # one name, several people: ask which one before any query runs
                         typed, d = unclear
@@ -2899,7 +3009,8 @@ def _handle_question(req, question):
                                        note=f"asked which {typed} ({len(d.candidates)} matches)")
                         return _reply(question, planned, "\n\n".join([d.ask] + ([f"{conv.INTERPRETED_PREFIX} {effective}"] if rewritten else [])))
             _turn_pinned.set(list(pinned))
-            route, body, sql_result, offer_retry = _run_pipeline(effective, is_retry, planned, pinned)
+            split = {"parts": parts} if parts else {}       # only passed when there is a split
+            route, body, sql_result, offer_retry = _run_pipeline(effective, is_retry, planned, pinned, **split)
         except HTTPException:
             raise
         except LLMError as e:

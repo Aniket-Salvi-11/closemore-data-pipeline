@@ -37,3 +37,26 @@ describe("DemoHeaderControls", () => {
     expect(getActiveUser()).toBeNull();
   });
 });
+
+describe("DemoHeaderControls slim layout (Cleo small panel)", () => {
+  it("shows name and role in one line, with the extra actions", () => {
+    setActiveUser(priya);
+    render(<DemoHeaderControls layout="slim" actions={<button type="button">Clear</button>} />);
+    expect(screen.getByText("Priya Nair · Sales rep")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Documents" })).toBeInTheDocument();
+    // details and Switch user are folded away until the line is clicked
+    expect(screen.queryByRole("button", { name: "Switch user" })).not.toBeInTheDocument();
+  });
+
+  it("the card shows region, scope and demo note, and Switch user still clears the user", () => {
+    setActiveUser(priya);
+    render(<DemoHeaderControls layout="slim" />);
+    fireEvent.click(screen.getByRole("button", { name: /Viewing as Priya Nair/ }));
+    expect(screen.getByText("Priya Nair · Sales rep · Indore")).toBeInTheDocument();
+    expect(screen.getByText(`Showing: ${priya.scope_label}`)).toBeInTheDocument();
+    expect(screen.getByText(/Demo mode/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Switch user" }));
+    expect(getActiveUser()).toBeNull();
+  });
+});

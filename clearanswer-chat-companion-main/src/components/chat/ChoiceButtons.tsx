@@ -20,7 +20,7 @@ interface ChoiceButtonsProps {
 /**
  * Buttons under an answer.
  * - "Which one?" with letters (kind "option"): one row per match. Click a row to pick it,
- *   or tick several and click "Show selected (n)", which sends the letters like "A, C".
+ *   or tick one or more and click "Show selected (n)", which sends the letters like "A, C".
  *   When several names were unclear, rows come under a heading per name ("Aman", "Neha Rao"),
  *   and Show selected needs at least one tick under every name.
  * - "All N" / "Both" (kind "all") and other follow-ups: normal buttons.
@@ -53,7 +53,8 @@ export function ChoiceButtons({
   const missing = grouped
     ? groups.filter((g) => !people.some((p) => p.group === g && ticked.has(p.value)))
     : [];
-  const showButton = ticked.size >= 2 || (grouped && ticked.size >= 1);
+  // From the first tick: with only one ticked box there was no way to send it (only clicking the row text worked).
+  const showButton = ticked.size >= 1;
   const allChoice = choices.find((c) => c.kind === "all");
 
   const toggle = (value: string) => {

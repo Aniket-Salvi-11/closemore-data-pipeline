@@ -33,6 +33,18 @@ interface ChatMessageProps {
     | undefined;
 }
 
+/** Cleo's face next to each of her answers (and while she is thinking). Decorative. */
+function CleoAvatar() {
+  return (
+    <img
+      src="/cleo_face.png"
+      alt=""
+      aria-hidden="true"
+      className="mt-0.5 size-7 shrink-0 rounded-full"
+    />
+  );
+}
+
 /** The "Answered for" line only makes sense for answers from the CRM data. */
 function showsScope(route: string | undefined): boolean {
   const r = route?.trim().toUpperCase();
@@ -99,12 +111,7 @@ function AssistantMessage({
   const badge = routeBadge(message.route);
   return (
     <div className="flex animate-answer-in items-start gap-3">
-      <img
-        src="/closemore-icon.png"
-        alt=""
-        aria-hidden="true"
-        className="mt-0.5 size-7 shrink-0 rounded-full border border-border bg-white"
-      />
+      <CleoAvatar />
       <div className="min-w-0 flex-1 pt-0.5">
         {badge ? (
           <span className="mb-1.5 inline-block rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
@@ -250,12 +257,7 @@ export function ThinkingIndicator() {
   const stage = thinkingStage(seconds);
   return (
     <div className="flex items-start gap-3" aria-label="Generating answer">
-      <img
-        src="/closemore-icon.png"
-        alt=""
-        aria-hidden="true"
-        className="mt-0.5 size-7 shrink-0 rounded-full border border-border bg-white"
-      />
+      <CleoAvatar />
       <div className="flex items-center gap-1.5 pt-2" aria-hidden="true">
         {[0, 1, 2].map((i) => (
           <span

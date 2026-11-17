@@ -53,11 +53,20 @@ describe("person picker", () => {
     expect(onPick).toHaveBeenCalledWith({ value: "B", label: choices[1]?.label });
   });
 
-  it("Show selected appears with 2+ ticks and sends the letters in list order", () => {
+  it("Show selected appears from the first tick and sends that one letter", () => {
+    const onPick = vi.fn();
+    render(<ChoiceButtons choices={choices} active onPick={onPick} />);
+    expect(screen.queryByRole("button", { name: /Show selected/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Select B\./ }));
+    fireEvent.click(screen.getByRole("button", { name: "Show selected (1)" }));
+    expect(onPick).toHaveBeenCalledWith({ value: "B", label: choices[1]?.label });
+  });
+
+  it("Show selected with 2+ ticks sends the letters in list order", () => {
     const onPick = vi.fn();
     render(<ChoiceButtons choices={choices} active onPick={onPick} />);
     fireEvent.click(screen.getByRole("checkbox", { name: /Select C\./ }));
-    expect(screen.queryByRole("button", { name: /Show selected/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show selected (1)" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: /Select A\./ }));
     fireEvent.click(screen.getByRole("button", { name: "Show selected (2)" }));
     expect(onPick.mock.calls[0]?.[0].value).toBe("A, C");

@@ -57,7 +57,7 @@ export function ChatComposer({ disabled, onSubmit }: ChatComposerProps) {
           ref={textareaRef}
           rows={1}
           value={value}
-          placeholder="Ask about your deals, contacts or documents…"
+          placeholder="Ask Cleo about your deals…"
           aria-label="Your question"
           className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
           onChange={(event) => {

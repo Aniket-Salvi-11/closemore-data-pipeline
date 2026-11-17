@@ -214,6 +214,12 @@ _TASK_PATTERNS = [
 ]
 _V_PERSON_DEALS = _vocab("deal owned own owns owner as the handles assigned handled managed belonging working handling managing responsible looking after currently opportunity "
                          "data details info information list display")
+# Words that FILTER the deals (status, size, time). When the name captured from the question contains one ("show Priya
+# Nair's open deals" captured "priya nair's open"), the template would silently drop the filter and list every deal:
+# the question goes to the SQL model instead, which can filter.
+_FILTER_WORDS = _vocab("open won lost closed active inactive pending new stalled stuck big bigger biggest large larger largest "
+                       "small smaller smallest top highest lowest latest recent old older oldest this last next month quarter "
+                       "year week today yesterday tomorrow value stage status above below over under more less")
 _V_OVERVIEW = _vocab("data details info information profile summary overview tell about who display complete full entire whole everything both")
 _V_PERSON_TASKS = _vocab("task assigned owned belonging pending open got currently")
 
@@ -247,6 +253,8 @@ def _match_person(q: str, tokens) -> Optional[Match]:
             if not m:
                 continue
             person = _clean_name(m.group("name"))
+            if person and name != "tasks_by_user" and any(_n(t) in _FILTER_WORDS for t in _tokens(person)):
+                return None          # a filter word inside the "name": not a plain list of this person's deals
             if person and _covered(tokens, vocab, person):
                 return Match(name, needs_person=True, person_text=person, build=builder, empty_is_final=final,
                              not_found_is_final=(name != "person_overview"))

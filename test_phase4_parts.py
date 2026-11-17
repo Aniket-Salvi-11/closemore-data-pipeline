@@ -104,7 +104,7 @@ def test_prompt_has_a_fixed_prefix_and_the_real_message_last():
     assert p1.rstrip().endswith("Message: tell me about Priya Nair\nJSON:")
     assert "Names mentioned so far: Priya Nair" in p1 and "(none)" in p2
     approx_tokens = len(u.PREFIX) / 3.5
-    assert approx_tokens < 1800, approx_tokens          # keep the fixed part small enough for CPU
+    assert approx_tokens < 2400, approx_tokens          # keep the fixed part small enough for CPU (1800 -> 2200 relevance check -> 2400 BOTH split)
 
 
 def test_parse_is_robust():

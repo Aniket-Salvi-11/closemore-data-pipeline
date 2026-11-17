@@ -26,11 +26,11 @@ export function UserPicker() {
   const showDemoNote = users.some((u) => u.demo_mode);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-4">
+    <main className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-background p-6">
       <div className="w-full max-w-sm space-y-5" aria-busy={state.status === "loading"}>
         <img src="/closemore-logo.png" alt="CloseMore" className="h-8 w-auto" />
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold">AI Copilot</h1>
+          <h1 className="text-xl font-semibold">Cleo</h1>
           <p className="text-sm text-muted-foreground">
             {showDemoNote
               ? "Demo mode. Choose a user to see what that role can see. No password needed."
